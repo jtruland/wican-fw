@@ -1778,10 +1778,9 @@ char *config_server_get_status_json(bool remove_sensitive_info)
 	cJSON_AddStringToObject(root, "drive_connection_type", device_config.drive_connection_type);
 	cJSON_AddStringToObject(root, "drive_mode_timeout", device_config.drive_mode_timeout);
 	cJSON_AddStringToObject(root, "sta_status", (wifi_mgr_is_sta_connected()?"Connected":"Not Connected"));
-	if(!remove_sensitive_info)
-	{
-		cJSON_AddStringToObject(root, "sta_ip", ip_str);
-	}
+	// sta_ip is a private LAN address (not a secret like the SSID/passwords above),
+	// so include it unconditionally — this is what carries station_ip out to HA on the webhook path.
+	cJSON_AddStringToObject(root, "sta_ip", ip_str);
 	cJSON_AddStringToObject(root, "mdns", wc_mdns_get_hostname());
 	cJSON_AddStringToObject(root, "ble_status", device_config.ble_status);
 	cJSON_AddStringToObject(root, "ble_power", device_config.ble_power);
