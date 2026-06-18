@@ -40,6 +40,7 @@
 #include "esp_err.h"
 #include <stdio.h>
 #include <string.h>
+#include "usb_host.h"
 #include <time.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
@@ -1781,6 +1782,29 @@ char *config_server_get_status_json(bool remove_sensitive_info)
 	// sta_ip is a private LAN address (not a secret like the SSID/passwords above),
 	// so include it unconditionally — this is what carries station_ip out to HA on the webhook path.
 	cJSON_AddStringToObject(root, "sta_ip", ip_str);
+	// Expose the live USB GPS fix on the LOCAL status only (the sanitized webhook
+	// path already carries gps in autopid's top-level "gps" block).
+	if(!remove_sensitive_info)
+	{
+		usb_gps_fix_t gfix;
+		cJSON *gps = cJSON_CreateObject();
+		if (gps)
+		{
+			if (usb_gps_get_fix(&gfix, 30000) && gfix.valid)
+			{
+				cJSON_AddBoolToObject(gps, "valid", true);
+				cJSON_AddNumberToObject(gps, "lat", gfix.latitude);
+				cJSON_AddNumberToObject(gps, "lon", gfix.longitude);
+				cJSON_AddNumberToObject(gps, "sats", gfix.satellites);
+				cJSON_AddNumberToObject(gps, "alt", gfix.altitude_m);
+			}
+			else
+			{
+				cJSON_AddBoolToObject(gps, "valid", false);
+			}
+			cJSON_AddItemToObject(root, "gps", gps);
+		}
+	}
 	cJSON_AddStringToObject(root, "mdns", wc_mdns_get_hostname());
 	cJSON_AddStringToObject(root, "ble_status", device_config.ble_status);
 	cJSON_AddStringToObject(root, "ble_power", device_config.ble_power);
