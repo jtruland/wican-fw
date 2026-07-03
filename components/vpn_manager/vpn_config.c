@@ -244,6 +244,8 @@ esp_err_t vpn_config_save(const vpn_config_t *config)
     }
     cJSON_AddNumberToObject(root, "type", config->type);
     cJSON_AddBoolToObject(root, "enabled", config->enabled);
+    cJSON_AddBoolToObject(root, "home_bypass_enabled", config->home_bypass_enabled);
+    cJSON_AddStringToObject(root, "home_ssids", config->home_ssids);
     if (config->type == VPN_TYPE_WIREGUARD)
     {
         cJSON *wg = cJSON_CreateObject();
@@ -356,6 +358,17 @@ esp_err_t vpn_config_load(vpn_config_t *config)
     if (cJSON_IsBool(item))
     {
         config->enabled = cJSON_IsTrue(item);
+    }
+    item = cJSON_GetObjectItem(root, "home_bypass_enabled");
+    if (cJSON_IsBool(item))
+    {
+        config->home_bypass_enabled = cJSON_IsTrue(item);
+    }
+    item = cJSON_GetObjectItem(root, "home_ssids");
+    if (cJSON_IsString(item))
+    {
+        strlcpy(config->home_ssids, item->valuestring, sizeof(config->home_ssids));
+        trim_str(config->home_ssids);
     }
     if (config->type == VPN_TYPE_WIREGUARD)
     {

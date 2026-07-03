@@ -1934,6 +1934,9 @@ char *config_server_get_status_json(bool remove_sensitive_info)
 		case VPN_STATUS_ERROR:
 			vpn_status_str = "error";
 			break;
+		case VPN_STATUS_PAUSED_HOME:
+			vpn_status_str = "paused_home";
+			break;
 		default:
 			vpn_status_str = "unknown";
 			break;

@@ -45,13 +45,14 @@ typedef enum
 } vpn_type_t;
 
 // VPN Status
-typedef enum 
+typedef enum
 {
     VPN_STATUS_DISABLED = 0,
     VPN_STATUS_DISCONNECTED,
     VPN_STATUS_CONNECTING,
     VPN_STATUS_CONNECTED,
-    VPN_STATUS_ERROR
+    VPN_STATUS_ERROR,
+    VPN_STATUS_PAUSED_HOME   // VPN intentionally held down: STA is on a trusted home SSID
 } vpn_status_t;
 
 // VPN WireGuard Configuration (separate from esp_wireguard API)
@@ -72,11 +73,16 @@ typedef struct
 } vpn_wireguard_config_t;
 
 // VPN Configuration
-typedef struct 
+typedef struct
 {
     vpn_type_t type;
     bool enabled;
-    union 
+    // Home-network bypass: pause the VPN while the STA is associated to a trusted SSID.
+    // SSID match is authenticated by the WPA association itself (we only join networks
+    // we hold credentials for), so no additional probing is required.
+    bool home_bypass_enabled;
+    char home_ssids[100]; // comma-separated trusted SSID list
+    union
     {
         vpn_wireguard_config_t wireguard;
     } config;
@@ -203,6 +209,12 @@ esp_err_t vpn_manager_get_ip_address(char *ip_str, size_t ip_str_size);
 // Returns true if a connect attempt is currently in progress.
 // elapsed_ms/timeout_ms are optional outputs (set to 0 if not connecting).
 bool vpn_manager_get_connect_timing(uint32_t *elapsed_ms, uint32_t *timeout_ms);
+
+// True while the VPN is intentionally paused because the STA is on a trusted home SSID.
+bool vpn_manager_home_bypass_active(void);
+
+// Copy the currently associated STA SSID into ssid (empty string if not associated).
+esp_err_t vpn_manager_get_sta_ssid(char *ssid, size_t size);
 
 #ifdef __cplusplus
 }

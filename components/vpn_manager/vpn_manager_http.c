@@ -266,6 +266,8 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
         cJSON_AddBoolToObject(response, "success", true);
         cJSON_AddNumberToObject(response, "vpn_type", config.type);
         cJSON_AddBoolToObject(response, "enabled", config.enabled);
+        cJSON_AddBoolToObject(response, "home_bypass_enabled", config.home_bypass_enabled);
+        cJSON_AddStringToObject(response, "home_ssids", config.home_ssids);
 
         if (config.type == VPN_TYPE_WIREGUARD)
         {
@@ -342,6 +344,7 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
             case VPN_STATUS_CONNECTING: status_str = "connecting"; break;
             case VPN_STATUS_CONNECTED: status_str = "connected"; break;
             case VPN_STATUS_ERROR: status_str = "error"; break;
+            case VPN_STATUS_PAUSED_HOME: status_str = "paused_home"; break;
         }
         cJSON_AddStringToObject(response, "status", status_str);
 
@@ -700,6 +703,37 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
         {
             config.config.wireguard.persistent_keepalive = item->valueint;
         }
+    }
+
+    // Home-network bypass settings (VPN-level, parsed regardless of type).
+    // Omitted fields preserve the stored values; an explicit empty home_ssids clears the list.
+    {
+        cJSON *hb = cJSON_GetObjectItem(json, "home_bypass_enabled");
+        if (cJSON_IsBool(hb))
+        {
+            config.home_bypass_enabled = cJSON_IsTrue(hb);
+        }
+        else if (cJSON_IsString(hb))
+        {
+            config.home_bypass_enabled = (strcmp(hb->valuestring, "true") == 0 || strcmp(hb->valuestring, "1") == 0);
+        }
+        else if (have_existing == ESP_OK)
+        {
+            config.home_bypass_enabled = existing.home_bypass_enabled;
+        }
+        ESP_LOGI(TAG, "Home bypass enabled: %d", (int)config.home_bypass_enabled);
+
+        cJSON *hs = cJSON_GetObjectItem(json, "home_ssids");
+        if (cJSON_IsString(hs))
+        {
+            strlcpy(config.home_ssids, hs->valuestring, sizeof(config.home_ssids));
+            trim_str(config.home_ssids);
+        }
+        else if (have_existing == ESP_OK)
+        {
+            strlcpy(config.home_ssids, existing.home_ssids, sizeof(config.home_ssids));
+        }
+        ESP_LOGI(TAG, "Home SSIDs: %s", config.home_ssids[0] ? config.home_ssids : "(none)");
     }
 
     cJSON_Delete(json);
@@ -1118,6 +1152,7 @@ static esp_err_t vpn_status_handler(httpd_req_t *req)
         case VPN_STATUS_CONNECTING: status_str = "connecting"; break;
         case VPN_STATUS_CONNECTED: status_str = "connected"; break;
         case VPN_STATUS_ERROR: status_str = "error"; break;
+        case VPN_STATUS_PAUSED_HOME: status_str = "paused_home"; break;
     }
 
     cJSON_AddStringToObject(response, "status", status_str);
@@ -1168,6 +1203,7 @@ static esp_err_t vpn_debug_handler(httpd_req_t *req)
         case VPN_STATUS_CONNECTING: vpn_status_str = "connecting"; break;
         case VPN_STATUS_CONNECTED: vpn_status_str = "connected"; break;
         case VPN_STATUS_ERROR: vpn_status_str = "error"; break;
+        case VPN_STATUS_PAUSED_HOME: vpn_status_str = "paused_home"; break;
     }
     cJSON_AddStringToObject(response, "vpn_status", vpn_status_str);
     cJSON_AddNumberToObject(response, "vpn_status_code", vpn_status);
@@ -1247,6 +1283,14 @@ static esp_err_t vpn_debug_handler(httpd_req_t *req)
     bool blockers = dev_status_is_any_bit_set(DEV_AP_ENABLED_BIT | DEV_SLEEP_BIT);
     cJSON_AddBoolToObject(response, "gating_prereqs_ok", prereqs);
     cJSON_AddBoolToObject(response, "gating_blockers_present", blockers);
+
+    // Home-network bypass state (cfg was loaded in the config summary above; zeroed on failure)
+    cJSON_AddBoolToObject(response, "home_bypass_active", vpn_manager_home_bypass_active());
+    cJSON_AddBoolToObject(response, "home_bypass_enabled", cfg.home_bypass_enabled);
+    cJSON_AddStringToObject(response, "home_ssids", cfg.home_ssids);
+    char cur_ssid[33] = {0};
+    (void)vpn_manager_get_sta_ssid(cur_ssid, sizeof(cur_ssid));
+    cJSON_AddStringToObject(response, "sta_ssid", cur_ssid);
 
     // STA IP + DNS
     esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");

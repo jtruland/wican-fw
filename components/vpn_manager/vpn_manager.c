@@ -166,9 +166,13 @@ static void vpn_backoff_bump(void)
     s_backoff_ms = s_backoff_ms - (jitter / 2) + (esp_random() % (jitter + 1));
 }
 
+// Home-network bypass state (reported via vpn_manager_home_bypass_active)
+static volatile bool s_home_paused = false;
+
 // Private function declarations
 static void vpn_manager_update_status(void);
 static esp_err_t vpn_manager_validate_wireguard_config(const vpn_wireguard_config_t *cfg);
+static bool vpn_manager_home_ssid_matched(const char *ssid_list);
 
 esp_err_t vpn_manager_init(void)
 {
@@ -456,6 +460,64 @@ bool vpn_manager_get_connect_timing(uint32_t *elapsed_ms, uint32_t *timeout_ms)
 
 // Event group handle is now private to manager
 
+bool vpn_manager_home_bypass_active(void)
+{
+    return s_home_paused;
+}
+
+esp_err_t vpn_manager_get_sta_ssid(char *ssid, size_t size)
+{
+    if (ssid == NULL || size == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    ssid[0] = '\0';
+    wifi_ap_record_t ap = {0};
+    esp_err_t ret = esp_wifi_sta_get_ap_info(&ap);
+    if (ret == ESP_OK)
+    {
+        strlcpy(ssid, (const char *)ap.ssid, size);
+    }
+    return ret;
+}
+
+// Match the currently associated STA SSID against a comma-separated trusted list.
+// Case-sensitive exact match (SSIDs are case-sensitive); entries are whitespace-trimmed.
+static bool vpn_manager_home_ssid_matched(const char *ssid_list)
+{
+    if (ssid_list == NULL || ssid_list[0] == '\0')
+    {
+        return false;
+    }
+    wifi_ap_record_t ap = {0};
+    if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK || ap.ssid[0] == '\0')
+    {
+        return false;
+    }
+
+    char buf[100];
+    strlcpy(buf, ssid_list, sizeof(buf));
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(buf, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr))
+    {
+        // Trim leading/trailing whitespace
+        while (*tok == ' ' || *tok == '\t')
+        {
+            tok++;
+        }
+        char *end = tok + strlen(tok);
+        while (end > tok && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n'))
+        {
+            *--end = '\0';
+        }
+        if (*tok != '\0' && strcmp(tok, (const char *)ap.ssid) == 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 esp_err_t vpn_manager_generate_wireguard_keys(char *public_key, size_t public_key_size)
 {
     if (public_key == NULL || public_key_size < 64)
@@ -733,6 +795,39 @@ static void vpn_task_fn(void *arg)
             // Idle state while waiting
             vTaskDelay(tick);
             continue;
+        }
+
+        // Home-network bypass: hold the VPN down while the STA is associated to a
+        // trusted home SSID. A pending one-shot test (test_once) overrides the pause
+        // so a deliberate tunnel test from home is still possible.
+        bool home_match = current_config.home_bypass_enabled &&
+                          vpn_manager_home_ssid_matched(current_config.home_ssids);
+        if (home_match && !test_once)
+        {
+            if (!s_home_paused)
+            {
+                ESP_LOGI(TAG, "Trusted home SSID detected; pausing VPN");
+            }
+            s_home_paused = true;
+            if (current_status == VPN_STATUS_CONNECTED || current_status == VPN_STATUS_CONNECTING)
+            {
+                vpn_manager_stop();
+                vpn_backoff_reset();
+            }
+            current_status = VPN_STATUS_PAUSED_HOME;
+            vTaskDelay(tick);
+            continue;
+        }
+        if (s_home_paused)
+        {
+            // Left the home network (or bypass disabled/test requested); resume normal flow.
+            ESP_LOGI(TAG, "Home bypass cleared; resuming VPN connect flow");
+            s_home_paused = false;
+            if (current_status == VPN_STATUS_PAUSED_HOME)
+            {
+                current_status = VPN_STATUS_DISCONNECTED;
+            }
+            vpn_backoff_reset();
         }
 
         // Attempt connect if needed
