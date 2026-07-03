@@ -23,9 +23,12 @@
 
 #include <esp_err.h>
 #include <esp_event.h>
+#include <stdint.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include "vpn_manager_http.h"
+
+struct netif; // lwIP netif, forward-declared to avoid a full lwip include here
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,8 +58,17 @@ typedef enum
     VPN_STATUS_PAUSED_HOME   // VPN intentionally held down: STA is on a trusted home SSID
 } vpn_status_t;
 
+// A single destination CIDR routed over the WG tunnel (real AllowedIPs semantics,
+// distinct from the tunnel's own local address/mask below).
+#define VPN_WG_MAX_ROUTES 8
+typedef struct
+{
+    char ip[16];
+    char mask[16];
+} vpn_wg_route_t;
+
 // VPN WireGuard Configuration (separate from esp_wireguard API)
-typedef struct 
+typedef struct
 {
     char private_key[64];
     char public_key[64];
@@ -65,8 +77,15 @@ typedef struct
     char dns_main[16];
     char dns_backup[16];
     char address[32];
+    // Legacy single-CIDR fields, kept for JSON back-compat. No longer used to
+    // derive the tunnel's local IP (see vpn_wg_init) -- superseded by routes[].
     char allowed_ip[32];
     char allowed_ip_mask[32];
+    // Parsed destination routes (from the same "AllowedIPs" UI field, now
+    // genuinely comma-separated). These are what the IP4 route hook matches
+    // against -- they do NOT affect the tunnel's own local address.
+    vpn_wg_route_t routes[VPN_WG_MAX_ROUTES];
+    uint8_t route_count;
     char endpoint[64];
     int port;
     int persistent_keepalive;
@@ -215,6 +234,12 @@ bool vpn_manager_home_bypass_active(void);
 
 // Copy the currently associated STA SSID into ssid (empty string if not associated).
 esp_err_t vpn_manager_get_sta_ssid(char *ssid, size_t size);
+
+// Returns the WG lwIP netif handle when the tunnel is connected, else NULL.
+// Used by the IP4 route hook (vpn_route_hook.h) to decide whether wg0 is a
+// valid routing target. (Route matching itself is vpn_manager_route_matches(),
+// declared in vpn_route_hook.h since it takes a concrete lwIP ip4_addr_t.)
+struct netif *vpn_manager_get_netif(void);
 
 #ifdef __cplusplus
 }

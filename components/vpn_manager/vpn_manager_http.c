@@ -32,6 +32,7 @@
 #include "dev_status.h"
 
 #include "vpn_wireguard.h"
+#include "vpn_config.h"
 
 #include "lwip/netif.h"
 
@@ -303,25 +304,10 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
                         cJSON_AddStringToObject(wg, "dns_backup", config.config.wireguard.dns_backup);
                     }
                 }
-                // Combine allowed_ip and mask into CIDR format for response (generic mapping)
-                char allowed_ips_cidr[64];
-                int a=0,b=0,c=0,d=0; unsigned int prefix = 32;
-                if (sscanf(config.config.wireguard.allowed_ip_mask, "%d.%d.%d.%d", &a,&b,&c,&d) == 4)
-                {
-                    uint32_t mask = ((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) |
-                                    ((uint32_t)(c & 0xFF) << 8)  | ((uint32_t)(d & 0xFF));
-                    if (mask == 0)
-                    {
-                        prefix = 0;
-                    }
-                    else
-                    {
-                        unsigned int count = 0; uint32_t bit = 0x80000000u;
-                        while (bit && (mask & bit)) { count++; bit >>= 1; }
-                        if ((mask << count) == 0) prefix = count; else prefix = 32;
-                    }
-                }
-                snprintf(allowed_ips_cidr, sizeof(allowed_ips_cidr), "%s/%u", config.config.wireguard.allowed_ip, prefix);
+                // Full route list (comma-separated CIDRs), not just one entry.
+                char allowed_ips_cidr[160];
+                vpn_config_format_routes(config.config.wireguard.routes, config.config.wireguard.route_count,
+                                          allowed_ips_cidr, sizeof(allowed_ips_cidr));
                 cJSON_AddStringToObject(wg, "allowed_ips", allowed_ips_cidr);
 
                 // Combine endpoint and port for response
@@ -629,45 +615,26 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
             strlcpy(config.config.wireguard.address, addr, sizeof(config.config.wireguard.address));
         }
 
-        // Allowed IPs (CIDR -> ip + mask)
+        // Allowed IPs / routes: comma-separated CIDR list, e.g.
+        // "10.100.0.0/24,192.168.86.0/24" -- each entry becomes a destination
+        // route over the tunnel (see vpn_route_hook.c), not the tunnel's own address.
         item = cJSON_GetObjectItem(json, "wg_allowed_ips");
         if (!cJSON_IsString(item)) item = cJSON_GetObjectItem(json, "allowed_ips");
         ESP_LOGI(TAG, "WireGuard allowed_ips: %s", item && cJSON_IsString(item) ? item->valuestring : "(not present)");
         if (cJSON_IsString(item))
         {
-            char cidr[64] = {0};
-            strlcpy(cidr, item->valuestring, sizeof(cidr)); trim_str(cidr);
-            char *slash = strchr(cidr, '/');
-            if (slash)
+            char list[160] = {0};
+            strlcpy(list, item->valuestring, sizeof(list)); trim_str(list);
+            vpn_config_parse_routes(list, config.config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                                     &config.config.wireguard.route_count);
+            ESP_LOGI(TAG, "Parsed %u route(s) from allowed_ips", (unsigned)config.config.wireguard.route_count);
+            if (config.config.wireguard.route_count > 0)
             {
-                *slash = '\0';
-                strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                int prefix = atoi(slash + 1);
-                ESP_LOGI(TAG, "Allowed IP: %s, CIDR prefix: %d", cidr, prefix);
-                if (prefix < 0)
-                {
-                    prefix = 0;
-                }
-                if (prefix > 32)
-                {
-                    prefix = 32;
-                }
-                uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
-                char mask_str[16];
-                snprintf(mask_str, sizeof(mask_str), "%u.%u.%u.%u",
-                         (unsigned)((mask >> 24) & 0xFF),
-                         (unsigned)((mask >> 16) & 0xFF),
-                         (unsigned)((mask >> 8) & 0xFF),
-                         (unsigned)(mask & 0xFF));
-                strlcpy(config.config.wireguard.allowed_ip_mask, mask_str, sizeof(config.config.wireguard.allowed_ip_mask));
-                ESP_LOGI(TAG, "Allowed IP mask: %s", mask_str);
-            }
-            else
-            {
-                // No prefix; default to /32
-                strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                strlcpy(config.config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config.config.wireguard.allowed_ip_mask));
-                ESP_LOGI(TAG, "Allowed IP: %s, default mask: 255.255.255.255", cidr);
+                // Mirror first route into legacy fields (back-compat only).
+                strlcpy(config.config.wireguard.allowed_ip, config.config.wireguard.routes[0].ip,
+                        sizeof(config.config.wireguard.allowed_ip));
+                strlcpy(config.config.wireguard.allowed_ip_mask, config.config.wireguard.routes[0].mask,
+                        sizeof(config.config.wireguard.allowed_ip_mask));
             }
         }
 
@@ -745,8 +712,7 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
         if (config.config.wireguard.private_key[0] == '\0' ||
             config.config.wireguard.public_key[0] == '\0' ||
             config.config.wireguard.address[0] == '\0' ||
-            config.config.wireguard.allowed_ip[0] == '\0' ||
-            config.config.wireguard.allowed_ip_mask[0] == '\0' ||
+            config.config.wireguard.route_count == 0 ||
             config.config.wireguard.endpoint[0] == '\0' ||
             config.config.wireguard.port <= 0)
         {
@@ -1001,34 +967,21 @@ static esp_err_t vpn_test_connection_handler(httpd_req_t *req)
                 strlcpy(config.config.wireguard.address, addr, sizeof(config.config.wireguard.address));
             }
 
-            // Allowed IPs (keep raw ip part + computed mask when CIDR)
+            // Allowed IPs / routes: comma-separated CIDR list (see store_config handler above).
             item = cJSON_GetObjectItem(json, "wg_allowed_ips");
             if (!cJSON_IsString(item)) item = cJSON_GetObjectItem(json, "allowed_ips");
             if (cJSON_IsString(item))
             {
-                char cidr[64] = {0};
-                strlcpy(cidr, item->valuestring, sizeof(cidr)); trim_str(cidr);
-                char *slash = strchr(cidr, '/');
-                if (slash)
+                char list[160] = {0};
+                strlcpy(list, item->valuestring, sizeof(list)); trim_str(list);
+                vpn_config_parse_routes(list, config.config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                                         &config.config.wireguard.route_count);
+                if (config.config.wireguard.route_count > 0)
                 {
-                    *slash = '\0';
-                    strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                    int prefix = atoi(slash + 1);
-                    if (prefix < 0) prefix = 0;
-                    if (prefix > 32) prefix = 32;
-                    uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
-                    char mask_str[16];
-                    snprintf(mask_str, sizeof(mask_str), "%u.%u.%u.%u",
-                             (unsigned)((mask >> 24) & 0xFF),
-                             (unsigned)((mask >> 16) & 0xFF),
-                             (unsigned)((mask >> 8) & 0xFF),
-                             (unsigned)(mask & 0xFF));
-                    strlcpy(config.config.wireguard.allowed_ip_mask, mask_str, sizeof(config.config.wireguard.allowed_ip_mask));
-                }
-                else
-                {
-                    strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                    strlcpy(config.config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config.config.wireguard.allowed_ip_mask));
+                    strlcpy(config.config.wireguard.allowed_ip, config.config.wireguard.routes[0].ip,
+                            sizeof(config.config.wireguard.allowed_ip));
+                    strlcpy(config.config.wireguard.allowed_ip_mask, config.config.wireguard.routes[0].mask,
+                            sizeof(config.config.wireguard.allowed_ip_mask));
                 }
             }
 

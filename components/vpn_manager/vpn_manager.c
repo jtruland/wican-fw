@@ -35,10 +35,12 @@
 #include "filesystem.h"
 #include "vpn_wireguard.h"
 #include "vpn_config.h"
+#include "vpn_route_hook.h"
 #include <time.h>
 #include "dev_status.h"
 #include "esp_system.h"
 #include "lwip/ip_addr.h"
+#include "lwip/ip4_addr.h"
 
 static const char *TAG = "VPN_MANAGER";
 
@@ -364,17 +366,12 @@ static esp_err_t vpn_manager_validate_wireguard_config(const vpn_wireguard_confi
         ESP_LOGE(TAG, "WG address is empty");
         ok = false;
     }
-    // allowed_ip/mask are used as local tunnel IP/mask by esp_wireguard.
-    // Permit empty or 0.0.0.0 if address is provided (we'll derive /32 from address).
-    bool allowed_empty = EMPTY_OR_NULL(cfg->allowed_ip) || strcmp(cfg->allowed_ip, "0.0.0.0") == 0;
-    if (allowed_empty && EMPTY_OR_NULL(cfg->address))
+    // The tunnel's local IP is always derived from address now (see vpn_wg_init).
+    // What actually needs validating is that at least one destination route is
+    // configured -- otherwise the tunnel would connect but carry no traffic.
+    if (cfg->route_count == 0)
     {
-        ESP_LOGE(TAG, "WG allowed_ip is empty and no address to derive from");
-        ok = false;
-    }
-    if (!allowed_empty && EMPTY_OR_NULL(cfg->allowed_ip_mask))
-    {
-        ESP_LOGE(TAG, "WG allowed_ip_mask is empty");
+        ESP_LOGE(TAG, "WG has no routes configured (AllowedIPs) -- tunnel would carry no traffic");
         ok = false;
     }
     if (EMPTY_OR_NULL(cfg->endpoint))
@@ -484,6 +481,30 @@ esp_err_t vpn_manager_get_sta_ssid(char *ssid, size_t size)
     return ret;
 }
 
+struct netif *vpn_manager_get_netif(void)
+{
+    return vpn_wg_get_netif();
+}
+
+bool vpn_manager_route_matches(const ip4_addr_t *dest)
+{
+    if (dest == NULL || current_config.type != VPN_TYPE_WIREGUARD)
+    {
+        return false;
+    }
+    const vpn_wireguard_config_t *wg = &current_config.config.wireguard;
+    for (uint8_t i = 0; i < wg->route_count; i++)
+    {
+        ip4_addr_t route_ip, route_mask;
+        if (ip4addr_aton(wg->routes[i].ip, &route_ip) && ip4addr_aton(wg->routes[i].mask, &route_mask) &&
+            ip4_addr_netcmp(dest, &route_ip, &route_mask))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Match the currently associated STA SSID against a comma-separated trusted list.
 // Case-sensitive exact match (SSIDs are case-sensitive); entries are whitespace-trimmed.
 static bool vpn_manager_home_ssid_matched(const char *ssid_list)
@@ -583,6 +604,47 @@ esp_err_t vpn_manager_get_ip_address(char *ip_str, size_t ip_str_size)
 
 // Private function implementations
 
+// True if ip_str falls within any of wg->routes[]. Used only for the DNS
+// coverage sanity check below (not for actual packet routing -- that's
+// vpn_route_hook.c, driven directly by the same routes[]).
+static bool ipv4_covered_by_routes(const char *ip_str, const vpn_wireguard_config_t *wg)
+{
+    if (!ip_str || !ip_str[0])
+    {
+        return true; // nothing to check
+    }
+    ip4_addr_t target;
+    if (!ip4addr_aton(ip_str, &target))
+    {
+        return true; // unparseable, don't false-alarm
+    }
+    for (uint8_t i = 0; i < wg->route_count; i++)
+    {
+        ip4_addr_t route_ip, route_mask;
+        if (ip4addr_aton(wg->routes[i].ip, &route_ip) && ip4addr_aton(wg->routes[i].mask, &route_mask) &&
+            ip4_addr_netcmp(&target, &route_ip, &route_mask))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+// wg0 is intentionally never made the default route (see vpn_route_hook.c) --
+// only the destination CIDRs in routes[] go over the tunnel. If the
+// configured WG DNS server isn't covered by any route, DNS-over-tunnel will
+// silently fail once away from home (the query has nowhere to go). Surface
+// that misconfiguration instead of leaving it silent.
+static void vpn_manager_warn_if_dns_unrouted(const vpn_wireguard_config_t *wg)
+{
+    if (wg->dns_main[0] && !ipv4_covered_by_routes(wg->dns_main, wg))
+    {
+        ESP_LOGW(TAG, "WG DNS server %s is not covered by any configured route -- "
+                      "DNS over the tunnel will silently fail while away from home",
+                 wg->dns_main);
+    }
+}
+
 // Helper function to update VPN status
 static void vpn_manager_update_status(void)
 {
@@ -594,12 +656,11 @@ static void vpn_manager_update_status(void)
             xEventGroupClearBits(vpn_event_group, VPN_CONNECTING_BIT | VPN_DISCONNECTED_BIT | VPN_ERROR_BIT);
             xEventGroupSetBits(vpn_event_group, VPN_CONNECTED_BIT);
             s_connect_started_us = 0;
-            // Only switch default route when the peer is actually up.
-            esp_err_t sret = vpn_wg_set_default_route();
-            if (sret != ESP_OK)
-            {
-                ESP_LOGW(TAG, "Failed to set WG default route: %s", esp_err_to_name(sret));
-            }
+            // wg0 stays a non-default netif; STA/cellular remains the default
+            // route unconditionally. Only destination CIDRs configured in
+            // routes[] are routed over the tunnel (vpn_route_hook.c) -- nothing
+            // else (webhook, NTP, ...) is ever affected by tunnel state.
+            vpn_manager_warn_if_dns_unrouted(&current_config.config.wireguard);
             // Apply DNS override (from WG config) on successful connect.
             vpn_manager_apply_dns_from_wg(&current_config.config.wireguard);
             ESP_LOGI(TAG, "VPN connected successfully");
@@ -694,8 +755,9 @@ void vpn_manager_request_test_hardcoded(void)
     strlcpy(cfg.config.wireguard.private_key, "KEY_HERE", sizeof(cfg.config.wireguard.private_key));
     strlcpy(cfg.config.wireguard.public_key,  "KEY_HERE", sizeof(cfg.config.wireguard.public_key));
     strlcpy(cfg.config.wireguard.address,      "0.0.0.0", sizeof(cfg.config.wireguard.address));
-    strlcpy(cfg.config.wireguard.allowed_ip,   "", sizeof(cfg.config.wireguard.allowed_ip)); // derive from address
-    strlcpy(cfg.config.wireguard.allowed_ip_mask, "", sizeof(cfg.config.wireguard.allowed_ip_mask));
+    // Dev-bench default: route everything over the tunnel (replace with real routes as needed).
+    vpn_config_parse_routes("0.0.0.0/0", cfg.config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                             &cfg.config.wireguard.route_count);
     strlcpy(cfg.config.wireguard.endpoint,     "0.0.0.0", sizeof(cfg.config.wireguard.endpoint));
     cfg.config.wireguard.port = 51820;
     cfg.config.wireguard.persistent_keepalive = 25;

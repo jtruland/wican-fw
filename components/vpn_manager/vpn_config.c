@@ -176,58 +176,112 @@ static void parse_dns_list_ipv4(const char *value, char *out_main, size_t out_ma
     }
 }
 
-static void choose_allowed_ips_ipv4(const char *value, char *out_ip, size_t out_ip_len, char *out_mask, size_t out_mask_len)
+static void ipv4_mask_from_prefix(unsigned int prefix, char *out, size_t out_len)
 {
-    if (out_ip && out_ip_len) out_ip[0] = '\0';
-    if (out_mask && out_mask_len) out_mask[0] = '\0';
-    if (!value) return;
+    if (prefix > 32) prefix = 32;
+    uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
+    snprintf(out, out_len, "%u.%u.%u.%u",
+             (unsigned)((mask >> 24) & 0xFF), (unsigned)((mask >> 16) & 0xFF),
+             (unsigned)((mask >> 8) & 0xFF), (unsigned)(mask & 0xFF));
+}
 
-    // We only keep a single IPv4 CIDR (legacy model). Prefer 0.0.0.0/0 if present.
+static unsigned int ipv4_prefix_from_mask(const char *mask_str)
+{
+    int a = 0, b = 0, c = 0, d = 0;
+    if (!mask_str || sscanf(mask_str, "%d.%d.%d.%d", &a, &b, &c, &d) != 4)
+    {
+        return 32;
+    }
+    uint32_t mask = ((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) |
+                    ((uint32_t)(c & 0xFF) << 8)  | ((uint32_t)(d & 0xFF));
+    if (mask == 0)
+    {
+        return 0;
+    }
+    unsigned int count = 0;
+    uint32_t bit = 0x80000000u;
+    while (bit && (mask & bit))
+    {
+        count++;
+        bit >>= 1;
+    }
+    return ((mask << count) == 0) ? count : 32;
+}
+
+// Parses a single "ip" or "ip/prefix" token (IPv4 only) into ip+mask strings.
+static bool parse_one_cidr_ipv4(const char *tok, char *out_ip, size_t out_ip_len, char *out_mask, size_t out_mask_len)
+{
+    if (!tok || !*tok || strchr(tok, ':'))
+    {
+        return false; // reject empty / IPv6 entries
+    }
+    char buf[40];
+    strlcpy(buf, tok, sizeof(buf));
+    char *slash = strchr(buf, '/');
+    if (slash)
+    {
+        *slash = '\0';
+        if (!looks_like_ipv4(buf)) return false;
+        int prefix = atoi(slash + 1);
+        if (prefix < 0) prefix = 0;
+        if (prefix > 32) prefix = 32;
+        strlcpy(out_ip, buf, out_ip_len);
+        ipv4_mask_from_prefix((unsigned)prefix, out_mask, out_mask_len);
+    }
+    else
+    {
+        if (!looks_like_ipv4(buf)) return false;
+        strlcpy(out_ip, buf, out_ip_len);
+        strlcpy(out_mask, "255.255.255.255", out_mask_len);
+    }
+    return true;
+}
+
+// Parses a comma-separated CIDR list ("10.100.0.0/24,192.168.86.0/24") into up
+// to max_routes (ip, mask) pairs -- real, multi-entry AllowedIPs/route semantics.
+esp_err_t vpn_config_parse_routes(const char *value, vpn_wg_route_t *routes, uint8_t max_routes, uint8_t *out_count)
+{
+    if (out_count) *out_count = 0;
+    if (!value || !routes || max_routes == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
     char buf[160];
     strlcpy(buf, value, sizeof(buf));
     trim_str(buf);
 
-    char chosen[64] = {0};
-
+    uint8_t count = 0;
     char *saveptr = NULL;
-    for (char *tok = strtok_r(buf, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr))
+    for (char *tok = strtok_r(buf, ",", &saveptr); tok && count < max_routes; tok = strtok_r(NULL, ",", &saveptr))
     {
         trim_str(tok);
         if (!*tok) continue;
-        // IPv4 only: ignore entries with ':' (IPv6)
-        if (strchr(tok, ':')) continue;
-        if (strcmp(tok, "0.0.0.0/0") == 0)
+        if (parse_one_cidr_ipv4(tok, routes[count].ip, sizeof(routes[count].ip), routes[count].mask, sizeof(routes[count].mask)))
         {
-            strlcpy(chosen, tok, sizeof(chosen));
-            break;
+            count++;
         }
-        if (chosen[0] == '\0')
+        else
         {
-            strlcpy(chosen, tok, sizeof(chosen));
+            ESP_LOGW(TAG_CFG, "Ignoring unparseable route entry: '%s'", tok);
         }
     }
+    if (out_count) *out_count = count;
+    return ESP_OK;
+}
 
-    if (chosen[0] == '\0') return;
-
-    char *slash = strchr(chosen, '/');
-    if (slash)
+// Joins a route list back into a comma-separated CIDR string, for JSON responses.
+void vpn_config_format_routes(const vpn_wg_route_t *routes, uint8_t count, char *out, size_t out_len)
+{
+    if (!out || out_len == 0) return;
+    out[0] = '\0';
+    if (!routes) return;
+    for (uint8_t i = 0; i < count; i++)
     {
-        *slash = '\0';
-        strlcpy(out_ip, chosen, out_ip_len);
-        int prefix = atoi(slash + 1);
-        if (prefix < 0) prefix = 0;
-        if (prefix > 32) prefix = 32;
-        uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
-        snprintf(out_mask, out_mask_len, "%u.%u.%u.%u",
-                 (unsigned)((mask >> 24) & 0xFF),
-                 (unsigned)((mask >> 16) & 0xFF),
-                 (unsigned)((mask >> 8) & 0xFF),
-                 (unsigned)(mask & 0xFF));
-    }
-    else
-    {
-        strlcpy(out_ip, chosen, out_ip_len);
-        strlcpy(out_mask, "255.255.255.255", out_mask_len);
+        unsigned int prefix = ipv4_prefix_from_mask(routes[i].mask);
+        char entry[40];
+        snprintf(entry, sizeof(entry), "%s%s/%u", (i > 0) ? "," : "", routes[i].ip, prefix);
+        strlcat(out, entry, out_len);
     }
 }
 
@@ -257,40 +311,10 @@ esp_err_t vpn_config_save(const vpn_config_t *config)
             cJSON_AddStringToObject(wg, "dns_main", config->config.wireguard.dns_main);
             cJSON_AddStringToObject(wg, "dns_backup", config->config.wireguard.dns_backup);
             cJSON_AddStringToObject(wg, "address", config->config.wireguard.address);
-            // Convert dotted mask to CIDR prefix length
-            char allowed_ips_cidr[64];
-            int a=0,b=0,c=0,d=0;
-            unsigned int pfx = 32; // default
-            if (sscanf(config->config.wireguard.allowed_ip_mask, "%d.%d.%d.%d", &a,&b,&c,&d) == 4)
-            {
-                uint32_t mask = ((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) |
-                                ((uint32_t)(c & 0xFF) << 8)  | ((uint32_t)(d & 0xFF));
-                if (mask == 0)
-                {
-                    pfx = 0;
-                }
-                else
-                {
-                    // count contiguous 1s from MSB
-                    unsigned int count = 0;
-                    uint32_t bit = 0x80000000u;
-                    while (bit && (mask & bit))
-                    {
-                        count++;
-                        bit >>= 1;
-                    }
-                    // remaining bits must be zero for a valid netmask
-                    if ((mask << count) == 0)
-                    {
-                        pfx = count;
-                    }
-                    else
-                    {
-                        pfx = 32; // fallback on invalid mask
-                    }
-                }
-            }
-            snprintf(allowed_ips_cidr, sizeof(allowed_ips_cidr), "%s/%u", config->config.wireguard.allowed_ip, pfx);
+            // Full route list (comma-separated CIDRs), not just one entry.
+            char allowed_ips_cidr[160];
+            vpn_config_format_routes(config->config.wireguard.routes, config->config.wireguard.route_count,
+                                      allowed_ips_cidr, sizeof(allowed_ips_cidr));
             cJSON_AddStringToObject(wg, "allowed_ips", allowed_ips_cidr);
             char endpoint_with_port[96];
             snprintf(endpoint_with_port, sizeof(endpoint_with_port), "%s:%d", config->config.wireguard.endpoint, config->config.wireguard.port);
@@ -420,45 +444,19 @@ esp_err_t vpn_config_load(vpn_config_t *config)
             it = cJSON_GetObjectItem(wg, "allowed_ips");
             if (cJSON_IsString(it))
             {
-                char buf[64];
+                char buf[160];
                 strlcpy(buf, it->valuestring, sizeof(buf));
                 trim_str(buf);
-                const char *allowed = buf;
-                const char *slash = strchr(allowed, '/');
-                if (slash)
+                vpn_config_parse_routes(buf, config->config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                                         &config->config.wireguard.route_count);
+                // Mirror the first route into the legacy singular fields (back-compat only;
+                // no longer used to derive the tunnel's local IP -- see vpn_wg_init()).
+                if (config->config.wireguard.route_count > 0)
                 {
-                    size_t ip_len = slash - allowed;
-                    if (ip_len < sizeof(config->config.wireguard.allowed_ip))
-                    {
-                        strncpy(config->config.wireguard.allowed_ip, allowed, ip_len);
-                        config->config.wireguard.allowed_ip[ip_len] = '\0';
-                        int prefix = atoi(slash + 1);
-                        if (prefix == 0)
-                        {
-                            strlcpy(config->config.wireguard.allowed_ip_mask, "0.0.0.0", sizeof(config->config.wireguard.allowed_ip_mask));
-                        }
-                        else if (prefix == 8)
-                        {
-                            strlcpy(config->config.wireguard.allowed_ip_mask, "255.0.0.0", sizeof(config->config.wireguard.allowed_ip_mask));
-                        }
-                        else if (prefix == 16)
-                        {
-                            strlcpy(config->config.wireguard.allowed_ip_mask, "255.255.0.0", sizeof(config->config.wireguard.allowed_ip_mask));
-                        }
-                        else if (prefix == 24)
-                        {
-                            strlcpy(config->config.wireguard.allowed_ip_mask, "255.255.255.0", sizeof(config->config.wireguard.allowed_ip_mask));
-                        }
-                        else
-                        {
-                            strlcpy(config->config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config->config.wireguard.allowed_ip_mask));
-                        }
-                    }
-                }
-                else
-                {
-                    strlcpy(config->config.wireguard.allowed_ip, allowed, sizeof(config->config.wireguard.allowed_ip));
-                    strlcpy(config->config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config->config.wireguard.allowed_ip_mask));
+                    strlcpy(config->config.wireguard.allowed_ip, config->config.wireguard.routes[0].ip,
+                            sizeof(config->config.wireguard.allowed_ip));
+                    strlcpy(config->config.wireguard.allowed_ip_mask, config->config.wireguard.routes[0].mask,
+                            sizeof(config->config.wireguard.allowed_ip_mask));
                 }
             }
             it = cJSON_GetObjectItem(wg, "endpoint");
@@ -610,9 +608,12 @@ esp_err_t vpn_config_parse_wg(const char *config_text, vpn_wireguard_config_t *c
     }
     if (allowed_accum[0] != '\0')
     {
-        choose_allowed_ips_ipv4(allowed_accum,
-                                config->allowed_ip, sizeof(config->allowed_ip),
-                                config->allowed_ip_mask, sizeof(config->allowed_ip_mask));
+        vpn_config_parse_routes(allowed_accum, config->routes, VPN_WG_MAX_ROUTES, &config->route_count);
+        if (config->route_count > 0)
+        {
+            strlcpy(config->allowed_ip, config->routes[0].ip, sizeof(config->allowed_ip));
+            strlcpy(config->allowed_ip_mask, config->routes[0].mask, sizeof(config->allowed_ip_mask));
+        }
     }
     free(copy);
     return ESP_OK;
