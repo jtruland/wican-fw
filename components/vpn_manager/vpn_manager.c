@@ -168,6 +168,9 @@ static void vpn_backoff_bump(void)
 
 // Home-network bypass state (reported via vpn_manager_home_bypass_active)
 static volatile bool s_home_paused = false;
+// After a one-shot test succeeds at home, hold the tunnel this long before re-pausing
+// so the UI polling /vpn/debug can observe the result.
+static int64_t s_home_test_grace_until_us = 0;
 
 // Private function declarations
 static void vpn_manager_update_status(void);
@@ -781,6 +784,15 @@ static void vpn_task_fn(void *arg)
             }
         }
 
+        // Test resolved successfully (status may be flipped by any thread via
+        // vpn_manager_update_status): clear the override and grant a grace window
+        // before the home-bypass gate may re-pause, so the UI can observe success.
+        if (test_once && current_status == VPN_STATUS_CONNECTED)
+        {
+            test_once = false;
+            s_home_test_grace_until_us = esp_timer_get_time() + 60000000LL; // 60s
+        }
+
         // Gating conditions
         bool prereqs = dev_status_are_bits_set(DEV_VPN_ENABLED_BIT | DEV_STA_CONNECTED_BIT);
         bool blockers = dev_status_is_any_bit_set(DEV_AP_ENABLED_BIT | DEV_SLEEP_BIT);
@@ -802,7 +814,7 @@ static void vpn_task_fn(void *arg)
         // so a deliberate tunnel test from home is still possible.
         bool home_match = current_config.home_bypass_enabled &&
                           vpn_manager_home_ssid_matched(current_config.home_ssids);
-        if (home_match && !test_once)
+        if (home_match && !test_once && esp_timer_get_time() >= s_home_test_grace_until_us)
         {
             if (!s_home_paused)
             {
@@ -864,10 +876,9 @@ static void vpn_task_fn(void *arg)
                         else
                         {
                             vpn_backoff_reset();
-                            if (test_once)
-                            {
-                                test_once = false;
-                            }
+                            // Keep test_once set through CONNECTING so the home-bypass
+                            // gate doesn't kill an in-flight test; it clears when the
+                            // test resolves (connected below, or connect timeout).
                         }
                     }
                 }
@@ -887,6 +898,7 @@ static void vpn_task_fn(void *arg)
                     ESP_LOGW(TAG, "VPN connect timeout; stopping and backing off");
                     vpn_manager_stop();
                     vpn_backoff_bump();
+                    test_once = false; // test resolved as failure
                 }
             }
         }
