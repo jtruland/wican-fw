@@ -29,6 +29,8 @@
 #include "dev_status.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include <math.h>
+#include <stdbool.h>
 
 #define TAG "imu"
 #define STATIONARY_TIME_MS      3000
@@ -128,6 +130,49 @@ static void imu_motion_task(void *pvParameters)
 
         vTaskDelay(pdMS_TO_TICKS(200));
     }
+}
+
+static float imu_ref_ax = 0.0f;
+static float imu_ref_ay = 0.0f;
+static float imu_ref_az = 0.0f;
+static bool imu_ref_valid = false;
+
+void imu_motion_ref_reset(void)
+{
+    imu_ref_valid = (imu_read_accel(&imu_ref_ax, &imu_ref_ay, &imu_ref_az) == ESP_OK);
+}
+
+bool imu_motion_since_ref(void)
+{
+    float ax, ay, az;
+
+    /* An unreadable IMU must never wake the device — fail closed. */
+    if (imu_read_accel(&ax, &ay, &az) != ESP_OK)
+    {
+        return false;
+    }
+
+    if (!imu_ref_valid)
+    {
+        imu_ref_ax = ax;
+        imu_ref_ay = ay;
+        imu_ref_az = az;
+        imu_ref_valid = true;
+        return false;
+    }
+
+    /* Same units as the WoM threshold the user configures: 1 LSB = 3.9 mg. */
+    const float limit_g = (imu_wom_threshold * 3.9f) / 1000.0f;
+
+    bool moved = (fabsf(ax - imu_ref_ax) > limit_g) ||
+                 (fabsf(ay - imu_ref_ay) > limit_g) ||
+                 (fabsf(az - imu_ref_az) > limit_g);
+
+    imu_ref_ax = ax;
+    imu_ref_ay = ay;
+    imu_ref_az = az;
+
+    return moved;
 }
 
 activity_state_t imu_get_activity_state(void)

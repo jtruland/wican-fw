@@ -56,6 +56,7 @@
 #include "wc_mdns.h"
 #include "vpn_manager.h"
 #include "restart_tracker.h"
+#include "imu.h"
 
 // #define TAG 		__func__
 #define TAG         "SLEEP_MODE"
@@ -987,6 +988,18 @@ void light_sleep_task(void *pvParameters)
                         ESP_LOGI(TAG, "Voltage above wakeup threshold, starting wakeup timer");
                         current_state = STATE_WAKE_PENDING;
                         wc_timer_set(&wakeup_timer, 1000); // 2 second timer for stable voltage
+                    }
+                    else if (battery_voltage > CRITICAL_VOLTAGE && imu_motion_since_ref())
+                    {
+                        // Vehicles whose alternator uses adaptive/regulated voltage control
+                        // (GM RVC and similar) hold the bus inside the sleep/wake hysteresis
+                        // band while driving, so voltage alone never crosses wakeup_voltage
+                        // and the device sleeps through the whole trip. Motion does not have
+                        // that ambiguity: a driven vehicle always moves, a parked one does not.
+                        ESP_LOGI(TAG, "Motion detected while asleep (%.2fV), returning to normal mode", battery_voltage);
+                        restart_tracker_restart(RESTART_TRACKER_PLANNED_REASON_POWER_WAKE,
+                                                RESTART_TRACKER_SOURCE_SLEEP_MODE,
+                                                RESTART_TRACKER_FLAG_NONE);
                     }
                     else if(battery_voltage > CRITICAL_VOLTAGE && periodic_wakeup && wc_timer_is_expired(&periodic_wakeup_timer))
                     {
