@@ -30,20 +30,21 @@ add_definitions(-DWICAN_V300_STR="${WICAN_V300_STR}")
 add_definitions(-DWICAN_USB_V100_STR="${WICAN_USB_V100_STR}")
 add_definitions(-DWICAN_PRO_STR="${WICAN_PRO_STR}")
 
+# -c safe.directory is what makes this work inside a build container: the bind-mounted
+# source is owned by a different uid than the container user, so git otherwise refuses
+# the tree as "dubious ownership" and writes nothing to stdout. That failure was silent,
+# and it left GIT_SHA empty - so the web UI's "Git ver" field showed nothing and the
+# output binary was named with an empty suffix, making builds indistinguishable.
 execute_process(
-    COMMAND git describe --tags --always --dirty
+    COMMAND git -c safe.directory=${CMAKE_SOURCE_DIR} describe --tags --always --dirty
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_SHA
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET
 )
 
-# git describe fails when the tree is built inside a container: the bind-mounted
-# source is owned by a different uid than the container user, so git refuses it as
-# "dubious ownership" and writes nothing to stdout. That failure was silent, and it
-# left GIT_SHA empty - so the web UI's "Git ver" field showed nothing and the output
-# binary was named with an empty suffix, making builds indistinguishable. Fall back
-# to version.txt so a build always identifies itself.
+# Still fall back to version.txt for builds from a source tarball, where there is no
+# .git at all and no amount of config will make describe produce anything.
 if(NOT GIT_SHA)
     file(READ "${CMAKE_SOURCE_DIR}/version.txt" GIT_SHA)
     string(STRIP "${GIT_SHA}" GIT_SHA)

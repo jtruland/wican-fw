@@ -708,23 +708,41 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
     // Basic validation when attempting to enable
     if (config.enabled && config.type == VPN_TYPE_WIREGUARD)
     {
-        bool valid = true;
-        if (config.config.wireguard.private_key[0] == '\0' ||
-            config.config.wireguard.public_key[0] == '\0' ||
-            config.config.wireguard.address[0] == '\0' ||
-            config.config.wireguard.route_count == 0 ||
-            config.config.wireguard.endpoint[0] == '\0' ||
-            config.config.wireguard.port <= 0)
+        // Name the offending fields. A bare "Invalid WireGuard configuration" is
+        // indistinguishable between a dozen different mistakes, and the private_key
+        // case is the worst of them: the key is never sent to the UI, so a missing
+        // one looks like a form that was filled in perfectly.
+        char missing[160];
+        size_t off = 0;
+        #define NOTE_MISSING(cond, name)                                             \
+            do {                                                                     \
+                if ((cond) && off + 1 < sizeof(missing))                             \
+                {                                                                    \
+                    int n = snprintf(missing + off, sizeof(missing) - off, "%s%s",   \
+                                     off ? ", " : "", name);                         \
+                    if (n > 0) { off += (size_t)n; }                                 \
+                    if (off >= sizeof(missing)) { off = sizeof(missing) - 1; }        \
+                }                                                                    \
+            } while (0)
+        missing[0] = '\0';
+        NOTE_MISSING(config.config.wireguard.private_key[0] == '\0', "private_key");
+        NOTE_MISSING(config.config.wireguard.public_key[0] == '\0', "peer_public_key");
+        NOTE_MISSING(config.config.wireguard.address[0] == '\0', "address");
+        NOTE_MISSING(config.config.wireguard.route_count == 0, "allowed_ips");
+        NOTE_MISSING(config.config.wireguard.endpoint[0] == '\0', "endpoint");
+        NOTE_MISSING(config.config.wireguard.port <= 0, "endpoint port");
+        #undef NOTE_MISSING
+
+        ESP_LOGI(TAG, "WireGuard config validation: %s", off ? missing : "valid");
+        if (off)
         {
-            valid = false;
-        }
-        ESP_LOGI(TAG, "WireGuard config validation: %s", valid ? "valid" : "invalid");
-        if (!valid)
-        {
+            char err_msg[224];
+            snprintf(err_msg, sizeof(err_msg),
+                     "Invalid WireGuard configuration; missing or empty: %s", missing);
             httpd_resp_set_type(req, "application/json");
             cJSON *resp = cJSON_CreateObject();
             cJSON_AddBoolToObject(resp, "success", false);
-            cJSON_AddStringToObject(resp, "error", "Invalid WireGuard configuration");
+            cJSON_AddStringToObject(resp, "error", err_msg);
             char *js = cJSON_PrintUnformatted(resp);
             cJSON_Delete(resp);
             if (js) { httpd_resp_send(req, js, strlen(js)); free(js); }

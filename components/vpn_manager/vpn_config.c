@@ -643,9 +643,17 @@ esp_err_t vpn_config_generate_wg_keys(char *public_key, size_t public_key_size)
     if (vpn_config_load(&cfg) != ESP_OK)
     {
         // Initialize minimal WG config if none exists
-        cfg.type = VPN_TYPE_WIREGUARD;
         cfg.enabled = false;
     }
+    // vpn_config_save() serializes the wireguard object ONLY when type is
+    // VPN_TYPE_WIREGUARD. Generating a key while the stored config was disabled
+    // therefore dropped the new private key on the floor - while still handing the
+    // UI a public key whose private half had never been persisted. That is a
+    // one-way door: store_config refuses to enable WireGuard without a private
+    // key, and the only thing that can supply one is this function, which could
+    // never store it again. Claim the type here so the key always lands.
+    // `enabled` is deliberately untouched - this must never start a tunnel.
+    cfg.type = VPN_TYPE_WIREGUARD;
     strlcpy(cfg.config.wireguard.private_key, priv_b64, sizeof(cfg.config.wireguard.private_key));
     // Do not overwrite peer_public_key here. Only return our public.
 
