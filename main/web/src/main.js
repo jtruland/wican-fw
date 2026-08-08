@@ -5154,15 +5154,26 @@ async function saveVpnConfiguration()
         body: JSON.stringify(vpnConfig, null, 0)
     });
     
-    if (!response.ok) 
-    {
-        throw new Error('Failed to save VPN configuration');
-    }
-    
     const responseText = await response.text();
     console.log('VPN config save response:', responseText);
-    
-    return responseText;
+
+    // The device answers HTTP 200 with {"success":false,"error":"..."} when it REJECTS
+    // a config, so the status code alone proves nothing. This used to return the raw
+    // body, and a non-empty string is truthy - so postConfig() read a rejection as a
+    // success, carried on, and rebooted into the old config. That is why a refused VPN
+    // config failed completely silently: no error, no VPN, just a reboot.
+    let parsed = null;
+    try { parsed = JSON.parse(responseText); } catch (_) { /* non-JSON body is a failure */ }
+
+    if (!response.ok || !parsed || parsed.success !== true)
+    {
+        const detail = (parsed && parsed.error) ? parsed.error
+                     : (responseText || ('HTTP ' + response.status));
+        showNotification('VPN config not saved: ' + detail, 'red');
+        return false;
+    }
+
+    return true;
 }
 
 async function testVpnConnection() 
