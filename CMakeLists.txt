@@ -35,7 +35,20 @@ execute_process(
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_SHA
     OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
 )
+
+# git describe fails when the tree is built inside a container: the bind-mounted
+# source is owned by a different uid than the container user, so git refuses it as
+# "dubious ownership" and writes nothing to stdout. That failure was silent, and it
+# left GIT_SHA empty - so the web UI's "Git ver" field showed nothing and the output
+# binary was named with an empty suffix, making builds indistinguishable. Fall back
+# to version.txt so a build always identifies itself.
+if(NOT GIT_SHA)
+    file(READ "${CMAKE_SOURCE_DIR}/version.txt" GIT_SHA)
+    string(STRIP "${GIT_SHA}" GIT_SHA)
+    message(STATUS "git describe unavailable; version from version.txt: ${GIT_SHA}")
+endif()
 
 set(GIT_SHA1 "${GIT_SHA}")
 string(REPLACE "." "" GIT_SHA "${GIT_SHA}")
