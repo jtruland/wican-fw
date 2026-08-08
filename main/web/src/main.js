@@ -4793,15 +4793,10 @@ function toggleVpnConfig()
 {
     const vpnEnabled = document.getElementById("vpn_enabled").value;
     const wireguardConfig = document.getElementById("wireguard_config");
+    const tailscaleConfig = document.getElementById("tailscale_config");
     
-    if (vpnEnabled === "wireguard") 
-    {
-        wireguardConfig.style.display = "block";
-    } 
-    else 
-    {
-        wireguardConfig.style.display = "none";
-    }
+    if (wireguardConfig) wireguardConfig.style.display = (vpnEnabled === "wireguard") ? "block" : "none";
+    if (tailscaleConfig) tailscaleConfig.style.display = (vpnEnabled === "tailscale") ? "block" : "none";
 }
 
 async function generateWireGuardKeys() 
@@ -4853,6 +4848,7 @@ async function loadVpnFromDevice() {
         console.warn('Failed to load VPN config', e);
     }
 }
+
 function tryApplyVPN(data) {
     if (!data) return false;
     const wg = data.wireguard || {};
@@ -4863,35 +4859,42 @@ function tryApplyVPN(data) {
     const allowedEl = document.getElementById('wg_allowed_ips');
     const epEl = document.getElementById('wg_endpoint');
     const keepEl = document.getElementById('wg_persistent_keepalive');
-    if (!enabledEl) {
-        return false;
-    }
-    // Enable/disable section
+    const tsAuthEl = document.getElementById('ts_auth_key');
+    const tsUrlEl = document.getElementById('ts_control_url');
+
+    if (!enabledEl) return false;
+
     const isWG = data.enabled && (String(data.vpn_type).toLowerCase() === 'wireguard' || data.vpn_type === 1);
-    // Match HTML option values: 'disable' | 'wireguard'
-    const desired = isWG ? 'wireguard' : 'disable';
+    const isTS = data.enabled && (String(data.vpn_type).toLowerCase() === 'tailscale' || data.vpn_type === 2);
+    
+    let desired = 'disable';
+    if (isWG) desired = 'wireguard';
+    if (isTS) desired = 'tailscale';
+
     enabledEl.value = desired;
-    // Fallback in case options not yet populated or value mismatch
-    if (enabledEl.value !== desired) {
-        enabledEl.selectedIndex = 0; // default to Disabled
-    }
-    if (typeof toggleVpnConfig === 'function') {
-        toggleVpnConfig();
-    }
-    // Fill fields
-    if (peerEl) { peerEl.value = String(wg.peer_public_key || '').trim(); }
-    if (pskEl) { pskEl.value = wg.preshared_key != null ? String(wg.preshared_key).trim() : ''; }
-    if (addrEl) { addrEl.value = wg.address != null ? String(wg.address).trim() : ''; }
-    if (allowedEl) { allowedEl.value = wg.allowed_ips != null ? String(wg.allowed_ips).trim() : ''; }
-    if (epEl) { epEl.value = wg.endpoint != null ? String(wg.endpoint).trim() : ''; }
+    if (enabledEl.value !== desired) enabledEl.selectedIndex = 0;
+    
+    if (typeof toggleVpnConfig === 'function') toggleVpnConfig();
+
+    // Fill WireGuard fields
+    if (peerEl) peerEl.value = String(wg.peer_public_key || '').trim();
+    if (pskEl) pskEl.value = wg.preshared_key != null ? String(wg.preshared_key).trim() : '';
+    if (addrEl) addrEl.value = wg.address != null ? String(wg.address).trim() : '';
+    if (allowedEl) allowedEl.value = wg.allowed_ips != null ? String(wg.allowed_ips).trim() : '';
+    if (epEl) epEl.value = wg.endpoint != null ? String(wg.endpoint).trim() : '';
     if (keepEl) { const n = Number(wg.persistent_keepalive); keepEl.value = Number.isFinite(n) ? String(n) : '0'; }
     // Home-network bypass (top-level fields)
     const hbEl = document.getElementById('vpn_home_bypass');
     if (hbEl) { hbEl.checked = data.home_bypass_enabled === true; }
     const hsEl = document.getElementById('vpn_home_ssids');
     if (hsEl) { hsEl.value = data.home_ssids != null ? String(data.home_ssids).trim() : ''; }
+    
+    // Fill Tailscale/Headscale fields
+    if (tsAuthEl) tsAuthEl.value = data.tailscale_auth_key != null ? String(data.tailscale_auth_key).trim() : '';
+    if (tsUrlEl) tsUrlEl.value = data.tailscale_control_url != null ? String(data.tailscale_control_url).trim() : '';
     return true;
 }
+
 function applyVpnConfigToUi(data) {
     if (!data) {
         return;
@@ -5082,7 +5085,7 @@ async function saveVpnConfiguration()
     
     let vpnConfig = {
         vpn_enabled: vpnEnabled,
-        vpn_type: vpnEnabled === "wireguard" ? "wireguard" : "disabled"
+        vpn_type: vpnEnabled === "wireguard" ? "wireguard" : (vpnEnabled === "tailscale" ? "tailscale" : "disabled")
     };
     
     if (vpnEnabled === "wireguard") 
@@ -5128,7 +5131,12 @@ async function saveVpnConfiguration()
     if (hbEl) { vpnConfig.home_bypass_enabled = hbEl.checked; }
     const hsEl = document.getElementById("vpn_home_ssids");
     if (hsEl) { vpnConfig.home_ssids = (hsEl.value || '').trim(); }
-
+    else if (vpnEnabled === "tailscale") 
+    {
+        vpnConfig.tailscale_auth_key = document.getElementById("ts_auth_key").value.trim();
+        vpnConfig.tailscale_control_url = document.getElementById("ts_control_url").value.trim();
+    }
+    
     console.log('VPN config to save:', vpnConfig);
     
     const response = await fetch('/vpn/store_config', {

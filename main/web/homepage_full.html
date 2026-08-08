@@ -2056,6 +2056,7 @@
                         <select name="vpn_enabled" id="vpn_enabled" onchange="toggleVpnConfig(); submit_enable();">
                             <option value="disable">Disabled</option>
                             <option value="wireguard">WireGuard</option>
+                            <option value="tailscale">Tailscale / Headscale</option>
                         </select>
                     </td>
                 </tr>
@@ -2181,18 +2182,45 @@
                         <td>NTP Resolve:</td>
                         <td><div id="vpn_dbg_ntp_resolve">-</div></td>
                     </tr>
-                    <tr>
+<tr>
                         <td>Raw:</td>
                         <td>
                             <pre id="vpn_dbg_raw" style="margin:0; font-weight:normal; white-space:pre-wrap; word-break:break-word; max-height:220px; overflow:auto; background:var(--gray-100); border:1px solid var(--gray-300); border-radius:6px; padding:10px;">-</pre>
                         </td>
                     </tr>
                 </table>
+            </div> <div id="tailscale_config" style="display: none;">
+                <div class="divider"></div>
+                <div class="section-title">Tailscale Configuration</div>
+                
+                <div class="section-title" style="font-size: 1.25rem; color: #2563eb; border-bottom: 2px solid #93c5fd; padding-bottom: 0.25rem; display: flex; align-items: center; gap: 8px;">
+                    <span data-lucide="shield" style="width: 20px; height: 20px;"></span>
+                    Authentication & Routing
+                </div>
+                <table class="form-table">
+                    <tr>
+                        <td>Auth Key:</td>
+                        <td>
+                            <input type="text" id="ts_auth_key" name="ts_auth_key" placeholder="tskey-auth-..." oninput="submit_enable();" />
+                            <div style="color:#6b7280; font-size: 12px; margin-top: 4px;">Enter a reusable or one-time Auth Key.</div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Control Server URL:</td>
+                        <td>
+                            <input type="url" id="ts_control_url" name="ts_control_url" placeholder="https://headscale.yourdomain.com" oninput="submit_enable();" />
+                            <div style="color:#6b7280; font-size: 12px; margin-top: 4px;">(Optional) Leave blank for official Tailscale. Enter a custom URL to route to a self-hosted Headscale server.</div>
+                        </td>
+                    </tr>
+                </table>
             </div>
-        </div>
-               
-        <div id="about_tab" class="tabcontent">
-            <div class="section-title">About</div>
+            </div> <div id="about_tab" class="tabcontent">
+            <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>About</span>
+            <a href="https://wambs.github.io/wican-fw/web_interface/about" target="_blank" style="color: #007bff; text-decoration: none; font-size: 14px; font-weight: bold;">
+              &#9432; View Documentation
+            </a>
+          </div>
             <table class="form-table">
                 <tr>
                     <td>Firmware ver:</td>

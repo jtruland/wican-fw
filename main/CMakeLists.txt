@@ -74,6 +74,7 @@ set(requires
     wican_common
     ws_server
     restart_tracker
+    microlink
 )
 
 # Register the component

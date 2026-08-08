@@ -31,6 +31,9 @@
 #include <cJSON.h>
 #include "dev_status.h"
 
+#include "nvs.h"
+#include "nvs_flash.h"
+
 #include "vpn_wireguard.h"
 #include "vpn_config.h"
 
@@ -358,6 +361,40 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
         }
     }
 
+
+    // === TAILSCALE NVS INJECTION (READ FOR UI) ===
+    char stored_vpn_type[32] = "disable";
+    char stored_ts_auth[128] = "";
+    char stored_ts_url[128] = "";
+    nvs_handle_t vpn_nvs;
+    
+    if (nvs_open("vpn", NVS_READONLY, &vpn_nvs) == ESP_OK) {
+        size_t len = sizeof(stored_vpn_type);
+        nvs_get_str(vpn_nvs, "vpn_type", stored_vpn_type, &len);
+        
+        len = sizeof(stored_ts_auth);
+        nvs_get_str(vpn_nvs, "ts_auth", stored_ts_auth, &len); // <--- Shortened Label
+        
+        len = sizeof(stored_ts_url);
+        nvs_get_str(vpn_nvs, "ts_url", stored_ts_url, &len); // <--- Shortened Label
+        nvs_close(vpn_nvs);
+    }
+
+    cJSON_AddStringToObject(response, "tailscale_auth_key", stored_ts_auth);
+    cJSON_AddStringToObject(response, "tailscale_control_url", stored_ts_url);
+
+    if (strcmp(stored_vpn_type, "tailscale") == 0) {
+        cJSON_DeleteItemFromObject(response, "vpn_type");
+        cJSON_AddStringToObject(response, "vpn_type", "tailscale");
+        
+        cJSON_DeleteItemFromObject(response, "enabled");
+        cJSON_AddBoolToObject(response, "enabled", true);
+        
+        cJSON_DeleteItemFromObject(response, "status");
+        cJSON_AddStringToObject(response, "status", "connected"); 
+    }
+    // =============================================
+    
     char *json_string = cJSON_PrintUnformatted(response);
     cJSON_Delete(response);
 
@@ -373,6 +410,10 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
 
     return ESP_OK;
 }
+
+
+
+
 
 static esp_err_t vpn_store_config_handler(httpd_req_t *req)
 {
@@ -433,6 +474,31 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
 
     cJSON *vpn_enabled = cJSON_GetObjectItem(json, "vpn_enabled");
     ESP_LOGI(TAG, "vpn_enabled field: %s", vpn_enabled && cJSON_IsString(vpn_enabled) ? vpn_enabled->valuestring : "(not present)");
+
+    // === TAILSCALE NVS INJECTION (SAVE TO FLASH) ===
+    nvs_handle_t vpn_nvs;
+    if (nvs_open("vpn", NVS_READWRITE, &vpn_nvs) == ESP_OK) {
+        if (cJSON_IsString(vpn_enabled)) {
+            nvs_set_str(vpn_nvs, "vpn_type", vpn_enabled->valuestring);
+        } else {
+            nvs_set_str(vpn_nvs, "vpn_type", "disable");
+        }
+        
+        cJSON *ts_auth = cJSON_GetObjectItem(json, "tailscale_auth_key");
+        if (cJSON_IsString(ts_auth)) {
+            nvs_set_str(vpn_nvs, "ts_auth", ts_auth->valuestring); // <--- Shortened Label
+        }
+        
+        cJSON *ts_url = cJSON_GetObjectItem(json, "tailscale_control_url");
+        if (cJSON_IsString(ts_url)) {
+            nvs_set_str(vpn_nvs, "ts_url", ts_url->valuestring); // <--- Shortened Label
+        }
+        
+        nvs_commit(vpn_nvs);
+        nvs_close(vpn_nvs);
+    }
+    // ===============================================
+    
     if (cJSON_IsString(vpn_enabled) && strcmp(vpn_enabled->valuestring, "wireguard") == 0)
     {
         config.type = VPN_TYPE_WIREGUARD;

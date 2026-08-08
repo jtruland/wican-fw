@@ -67,3 +67,5 @@ managed_components/
 # Clangd Cache
 .cache/
 tools/https_test_server/test_certs/
+
+sdkconfig.old

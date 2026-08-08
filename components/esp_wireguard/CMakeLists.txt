@@ -11,7 +11,13 @@ idf_component_register(
          "src/esp_wireguard.c"
          "src/nacl/crypto_scalarmult/curve25519/ref/smult.c"
     INCLUDE_DIRS "include"
+        "src"
+        "src/crypto/refc"
+        "src/crypto"
     PRIV_INCLUDE_DIRS "src"
+        "src"
+        "src/crypto/refc"
+        "src/crypto"
     REQUIRES esp_netif lwip mbedtls)
 
 if(${IDF_VERSION_MAJOR} STREQUAL 5)

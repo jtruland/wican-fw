@@ -80,6 +80,7 @@
 #include "vpn_manager.h"
 #include "config_mode.h"
 #include "driver/rtc_io.h"
+#include "microlink.h"
 
 #define TAG 		__func__
 #define USB_ID_PIN					39
@@ -571,6 +572,97 @@ void safe_mode_check(void)
 	}
 }
 
+// Static handle for our background Wi-Fi monitoring timer
+static esp_timer_handle_t ts_wifi_timer_handle;
+
+static void tailscale_test_task(void *pvParameters) {
+    vTaskDelay(pdMS_TO_TICKS(4000));
+    ESP_LOGI("TAILSCALE", "Initializing Tailscale VPN Mesh...");
+    
+    char stored_auth_key[128] = {0};
+    char stored_control_url[128] = {0};
+    nvs_handle_t nvs_vpn_handle;
+    
+    if (nvs_open("vpn", NVS_READONLY, &nvs_vpn_handle) == ESP_OK) {
+        size_t key_size = sizeof(stored_auth_key);
+        nvs_get_str(nvs_vpn_handle, "ts_auth", stored_auth_key, &key_size);
+        
+        size_t url_size = sizeof(stored_control_url);
+        nvs_get_str(nvs_vpn_handle, "ts_url", stored_control_url, &url_size);
+        
+        nvs_close(nvs_vpn_handle);
+    }
+
+    // === STRICT SECURITY GATE ===
+    // If the key is missing or suspiciously short, abort the entire process.
+    if (strlen(stored_auth_key) <= 5) {
+        ESP_LOGE("TAILSCALE", "No valid Auth Key found in storage. Aborting VPN initialization.");
+        vTaskDelete(NULL); // Kill the task immediately to free the 14KB of RAM
+        return; 
+    }
+
+    static microlink_config_t config;
+    memset(&config, 0, sizeof(config));
+    
+    // Assign Auth Key
+    config.auth_key = stored_auth_key;
+    ESP_LOGI("TAILSCALE", "Auth Key successfully loaded from secure storage.");
+    
+    // 2. Assign Headscale URL (if provided)
+    if (strlen(stored_control_url) > 5) {
+        // config.control_url = stored_control_url; // <-- REMOVED: Not supported by this struct version
+        ESP_LOGW("TAILSCALE", "Custom Headscale URL (%s) was saved, but dynamic routing is not supported by this MicroLink version.", stored_control_url);
+        ESP_LOGW("TAILSCALE", "To use Headscale, you must define CONFIG_ML_CONTROL_PLANE_HOST in your sdkconfig and recompile.");
+    }
+    
+    config.max_peers = 3; 
+    microlink_t *ml = microlink_init(&config); 
+
+    if (ml != NULL) {
+        ESP_LOGI("TAILSCALE", "Tailscale/Headscale tunnel opened successfully.");
+        microlink_start(ml); 
+        vTaskDelay(pdMS_TO_TICKS(100));
+        
+        ESP_LOGI("TAILSCALE", "Setup complete. Destroying wrapper task to reclaim 14KB internal RAM.");
+        vTaskDelete(NULL); 
+    } else {
+        ESP_LOGE("TAILSCALE", "VPN initialization failed.");
+        vTaskDelete(NULL); 
+    }
+}
+
+// Background callback that verifies conditional flags before launching elements
+static void ts_wifi_monitor_callback(void* arg) {
+    if (dev_status_is_sta_connected()) {
+        
+        // --- CHIP INTEGRITY CHECK: Verify if Tailscale is selected ---
+        char vpn_type_check[32] = {0};
+        nvs_handle_t check_handle;
+        bool should_start_tailscale = false;
+        
+        if (nvs_open("vpn", NVS_READONLY, &check_handle) == ESP_OK) {
+            size_t size = sizeof(vpn_type_check);
+            if (nvs_get_str(check_handle, "vpn_type", vpn_type_check, &size) == ESP_OK) {
+                if (strcmp(vpn_type_check, "tailscale") == 0) {
+                    should_start_tailscale = true;
+                }
+            }
+            nvs_close(check_handle);
+        }
+
+        // Always clean up the monitor timer loop once connected
+        esp_timer_stop(ts_wifi_timer_handle);
+        esp_timer_delete(ts_wifi_timer_handle);
+
+        if (should_start_tailscale) {
+            xTaskCreate(tailscale_test_task, "ts_test_task", 3584, NULL, 5, NULL);
+            ESP_LOGI("TAILSCALE", "System stabilized. Tailscale engine selected and spawned.");
+        } else {
+            ESP_LOGI("TAILSCALE", "Tailscale is disabled or set to WireGuard. Skipping execution thread.");
+        }
+    }
+}
+
 void app_main(void)
 {
 	void* internal_buf = NULL;
@@ -1038,7 +1130,7 @@ void app_main(void)
 
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_app_desc_t running_app_info;
-	uint32_t firmware_ver_minor, firmware_ver_major;
+    //  not used uint32_t firmware_ver_minor, firmware_ver_major;
 
     if (esp_ota_get_partition_description(running, &running_app_info) == ESP_OK)
     {
@@ -1108,8 +1200,28 @@ void app_main(void)
 	{
 		free(internal_buf);
 	}
-	config_mode_init();
+
+        config_mode_init();
 	wc_mdns_init((char*)uid, hardware_version, firmware_version);
+
+	// === TAILSCALE DEFERRED ALLOCATION STRATEGY ===
+	// To prevent gutting internal RAM on boot, we use a 0-overhead background 
+	// timer to defer task creation until the heavy boot sequences complete.
+	const esp_timer_create_args_t ts_timer_args = {
+		.callback = &ts_wifi_monitor_callback,
+		.name = "ts_wifi_monitor"
+	};
+	
+	if (esp_timer_create(&ts_timer_args, &ts_wifi_timer_handle) == ESP_OK) {
+		// Poll the Wi-Fi link status every 1 second (1,000,000 microseconds)
+		esp_timer_start_periodic(ts_wifi_timer_handle, 1000000);
+		ESP_LOGI("TAILSCALE", "Deferred connection tracker active.");
+	} else {
+		ESP_LOGE("TAILSCALE", "Failed to initialize deferred network tracker.");
+	}
+
+	// xEventTask = xEventGroupCreate();
+
 	
 	// xEventTask = xEventGroupCreate();
 	// xTaskCreate(ftp_task, "FTP", 1024*6, NULL, 2, NULL);
@@ -1120,7 +1232,15 @@ void app_main(void)
 	// portMAX_DELAY);/* Wait forever. */ 
 	if(!config_server_is_debug_enabled())
 	{
-		esp_log_level_set("*", ESP_LOG_NONE);
+	  	esp_log_level_set("*", ESP_LOG_NONE);
+		// kww added logs below
+		esp_log_level_set("TAILSCALE", ESP_LOG_INFO);
+                esp_log_level_set("microlink", ESP_LOG_INFO);
+                esp_log_level_set("wireguardif", ESP_LOG_INFO);
+                 esp_log_level_set("esp_wireguard", ESP_LOG_INFO);
+		 esp_log_level_set("esp-tls", ESP_LOG_WARN);
+                esp_log_level_set("mbedtls", ESP_LOG_WARN);
+                esp_log_level_set("HTTP_CLIENT", ESP_LOG_WARN);
 	}
 	// esp_log_level_set("can_tx_task", ESP_LOG_INFO);
 	// esp_log_level_set("can_rx_task", ESP_LOG_INFO);
@@ -1172,6 +1292,9 @@ void app_main(void)
 	}
     #endif
 
+
+
+	
 	cmdline_init();
 }
 
