@@ -32,6 +32,11 @@ esp_err_t vpn_config_load(vpn_config_t *config);
 esp_err_t vpn_config_parse_wg(const char *config_text, vpn_wireguard_config_t *config);
 esp_err_t vpn_config_generate_wg_keys(char *public_key, size_t public_key_size);
 
+// Parse a comma-separated CIDR list into up to max_routes (ip, mask) pairs.
+esp_err_t vpn_config_parse_routes(const char *value, vpn_wg_route_t *routes, uint8_t max_routes, uint8_t *out_count);
+// Join a route list back into a comma-separated CIDR string.
+void vpn_config_format_routes(const vpn_wg_route_t *routes, uint8_t count, char *out, size_t out_len);
+
 // Preload /vpn_config.json into PSRAM once and reuse it (avoids reopening file)
 esp_err_t vpn_config_preload(void);
 // Get a read-only pointer to the cached JSON (NULL if not loaded)

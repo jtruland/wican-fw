@@ -40,6 +40,7 @@
 #include "esp_err.h"
 #include <stdio.h>
 #include <string.h>
+#include "usb_host.h"
 #include <time.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
@@ -1778,9 +1779,31 @@ char *config_server_get_status_json(bool remove_sensitive_info)
 	cJSON_AddStringToObject(root, "drive_connection_type", device_config.drive_connection_type);
 	cJSON_AddStringToObject(root, "drive_mode_timeout", device_config.drive_mode_timeout);
 	cJSON_AddStringToObject(root, "sta_status", (wifi_mgr_is_sta_connected()?"Connected":"Not Connected"));
+	// sta_ip is a private LAN address (not a secret like the SSID/passwords above),
+	// so include it unconditionally — this is what carries station_ip out to HA on the webhook path.
+	cJSON_AddStringToObject(root, "sta_ip", ip_str);
+	// Expose the live USB GPS fix on the LOCAL status only (the sanitized webhook
+	// path already carries gps in autopid's top-level "gps" block).
 	if(!remove_sensitive_info)
 	{
-		cJSON_AddStringToObject(root, "sta_ip", ip_str);
+		usb_gps_fix_t gfix;
+		cJSON *gps = cJSON_CreateObject();
+		if (gps)
+		{
+			if (usb_gps_get_fix(&gfix, 30000) && gfix.valid)
+			{
+				cJSON_AddBoolToObject(gps, "valid", true);
+				cJSON_AddNumberToObject(gps, "lat", gfix.latitude);
+				cJSON_AddNumberToObject(gps, "lon", gfix.longitude);
+				cJSON_AddNumberToObject(gps, "sats", gfix.satellites);
+				cJSON_AddNumberToObject(gps, "alt", gfix.altitude_m);
+			}
+			else
+			{
+				cJSON_AddBoolToObject(gps, "valid", false);
+			}
+			cJSON_AddItemToObject(root, "gps", gps);
+		}
 	}
 	cJSON_AddStringToObject(root, "mdns", wc_mdns_get_hostname());
 	cJSON_AddStringToObject(root, "ble_status", device_config.ble_status);
@@ -1910,6 +1933,9 @@ char *config_server_get_status_json(bool remove_sensitive_info)
 			break;
 		case VPN_STATUS_ERROR:
 			vpn_status_str = "error";
+			break;
+		case VPN_STATUS_PAUSED_HOME:
+			vpn_status_str = "paused_home";
 			break;
 		default:
 			vpn_status_str = "unknown";
@@ -2573,7 +2599,7 @@ static void config_server_load_cfg(char *cfg)
 		goto config_error;
 	}
 	strlcpy(device_config.sta_pass, key->valuestring, sizeof(device_config.sta_pass));
-	ESP_LOGI(TAG, "device_config.sta_pass: %s", device_config.sta_pass);
+	ESP_LOGD(TAG, "device_config.sta_pass: %s", device_config.sta_pass);
 
 	key = cJSON_GetObjectItem(root,"can_datarate");
 	if(key == 0)
@@ -2630,7 +2656,7 @@ static void config_server_load_cfg(char *cfg)
 		goto config_error;
 	}
 	strlcpy(device_config.ap_pass, key->valuestring, sizeof(device_config.ap_pass));
-	ESP_LOGI(TAG, "device_config.ap_pass: %s", device_config.ap_pass);
+	ESP_LOGD(TAG, "device_config.ap_pass: %s", device_config.ap_pass);
 
 	key = cJSON_GetObjectItem(root,"protocol");
 	if(key == 0)
@@ -2654,7 +2680,7 @@ static void config_server_load_cfg(char *cfg)
 		goto config_error;
 	}
 	strlcpy(device_config.ble_pass, key->valuestring, sizeof(device_config.ble_pass));
-	ESP_LOGI(TAG, "device_config.ble_pass: %s", device_config.ble_pass);
+	ESP_LOGD(TAG, "device_config.ble_pass: %s", device_config.ble_pass);
 
 	key = cJSON_GetObjectItem(root,"ble_power");
 	if(key && key->valuestring) {
@@ -2739,7 +2765,7 @@ static void config_server_load_cfg(char *cfg)
 	}
 
 	strlcpy(device_config.batt_alert_pass, key->valuestring, sizeof(device_config.batt_alert_pass));
-	ESP_LOGI(TAG, "device_config.batt_alert_pass: %s", device_config.batt_alert_pass);
+	ESP_LOGD(TAG, "device_config.batt_alert_pass: %s", device_config.batt_alert_pass);
 	//*****
 
 	//*****
@@ -2816,7 +2842,7 @@ static void config_server_load_cfg(char *cfg)
 	}
 
 	strlcpy(device_config.batt_mqtt_pass, key->valuestring, sizeof(device_config.batt_mqtt_pass));
-	ESP_LOGI(TAG, "device_config.batt_mqtt_pass: %s", device_config.batt_mqtt_pass);
+	ESP_LOGD(TAG, "device_config.batt_mqtt_pass: %s", device_config.batt_mqtt_pass);
 	//*****
 
 	//*****
@@ -2884,7 +2910,7 @@ static void config_server_load_cfg(char *cfg)
 	}
 
 	strlcpy(device_config.mqtt_pass, key->valuestring, sizeof(device_config.mqtt_pass));
-	ESP_LOGI(TAG, "device_config.mqtt_pass: %s", device_config.mqtt_pass);
+	ESP_LOGD(TAG, "device_config.mqtt_pass: %s", device_config.mqtt_pass);
 	//*****
 
 	// mqtt_security
@@ -3122,7 +3148,7 @@ static void config_server_load_cfg(char *cfg)
 	{
 		strlcpy(device_config.home_password, key->valuestring, sizeof(device_config.home_password));
 	}
-	ESP_LOGI(TAG, "device_config.home_password: %s", device_config.home_password);
+	ESP_LOGD(TAG, "device_config.home_password: %s", device_config.home_password);
 
 	key = cJSON_GetObjectItem(root,"home_security");
 	if(key == 0 || key->valuestring == NULL || strlen(key->valuestring) == 0 || strlen(key->valuestring) > sizeof(device_config.home_security) - 1)
@@ -3166,7 +3192,7 @@ static void config_server_load_cfg(char *cfg)
 	{
 		strlcpy(device_config.drive_password, key->valuestring, sizeof(device_config.drive_password));
 	}
-	ESP_LOGI(TAG, "device_config.drive_password: %s", device_config.drive_password);
+	ESP_LOGD(TAG, "device_config.drive_password: %s", device_config.drive_password);
 
 	key = cJSON_GetObjectItem(root,"drive_security");
 	if(key == 0 || key->valuestring == NULL || strlen(key->valuestring) == 0 || strlen(key->valuestring) > sizeof(device_config.drive_security) - 1)

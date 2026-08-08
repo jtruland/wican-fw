@@ -104,33 +104,25 @@ esp_err_t vpn_wg_init(const vpn_wireguard_config_t *cfg)
     {
         s_wg_cfg.preshared_key = (char*)cfg->preshared_key;
     }
-    // esp_wireguard uses allowed_ip/mask as LOCAL tunnel IP/mask. If user provided AllowedIPs=0.0.0.0/0,
-    // derive local IP from Interface Address instead.
-    bool have_allowed = (cfg->allowed_ip[0] && strcmp(cfg->allowed_ip, "0.0.0.0") != 0);
-    if (have_allowed)
+    // esp_wireguard uses allowed_ip/mask as the tunnel's own LOCAL IP/mask (a
+    // point-to-point address, e.g. 10.100.0.2/24 from pfSense's peer config) --
+    // NOT real WireGuard AllowedIPs/route semantics. Always derive it from the
+    // Interface Address; which destination CIDRs actually route over the
+    // tunnel is decided separately by the IP4 route hook (vpn_route_hook.c),
+    // driven by cfg->routes[].
+    if (cfg->address[0])
     {
-        s_wg_cfg.allowed_ip = (char*)cfg->allowed_ip;
-        if (cfg->allowed_ip_mask[0])
+        // Strip any trailing CIDR (e.g., "/32") from Address before using as local IP
+        strlcpy(s_addr_derived, cfg->address, sizeof(s_addr_derived));
+        char *slash = strchr(s_addr_derived, '/');
+        if (slash)
         {
-            s_wg_cfg.allowed_ip_mask = (char*)cfg->allowed_ip_mask;
+            *slash = '\0';
         }
-    }
-    else
-    {
-        if (cfg->address[0])
-        {
-            // Strip any trailing CIDR (e.g., "/32") from Address before using as local IP
-            strlcpy(s_addr_derived, cfg->address, sizeof(s_addr_derived));
-            char *slash = strchr(s_addr_derived, '/');
-            if (slash)
-            {
-                *slash = '\0';
-            }
-            s_wg_cfg.allowed_ip = (char*)s_addr_derived;
-            // default to /32 for point-to-point tunnel
-            s_wg_cfg.allowed_ip_mask = "255.255.255.255";
-            ESP_LOGI(TAG_WG, "Deriving local WG IP from address %s/32", s_addr_derived);
-        }
+        s_wg_cfg.allowed_ip = (char*)s_addr_derived;
+        // default to /32 for point-to-point tunnel
+        s_wg_cfg.allowed_ip_mask = "255.255.255.255";
+        ESP_LOGI(TAG_WG, "Deriving local WG IP from address %s/32", s_addr_derived);
     }
     if (cfg->endpoint[0])
     {
@@ -242,6 +234,11 @@ esp_err_t vpn_wg_stop(void)
     return ESP_OK;
 }
 
+struct netif *vpn_wg_get_netif(void)
+{
+    return vpn_wg_is_peer_up() ? s_wg_ctx.netif : NULL;
+}
+
 bool vpn_wg_is_peer_up(void)
 {
     // Avoid calling into esp_wireguard when not initialized or not connected
@@ -252,11 +249,3 @@ bool vpn_wg_is_peer_up(void)
     return esp_wireguardif_peer_is_up(&s_wg_ctx) == ESP_OK;
 }
 
-esp_err_t vpn_wg_set_default_route(void)
-{
-    if (s_wg_ctx.config == NULL)
-    {
-        return ESP_ERR_INVALID_STATE;
-    }
-    return esp_wireguard_set_default(&s_wg_ctx);
-}

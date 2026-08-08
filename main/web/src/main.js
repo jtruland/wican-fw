@@ -4885,6 +4885,11 @@ function tryApplyVPN(data) {
     if (allowedEl) { allowedEl.value = wg.allowed_ips != null ? String(wg.allowed_ips).trim() : ''; }
     if (epEl) { epEl.value = wg.endpoint != null ? String(wg.endpoint).trim() : ''; }
     if (keepEl) { const n = Number(wg.persistent_keepalive); keepEl.value = Number.isFinite(n) ? String(n) : '0'; }
+    // Home-network bypass (top-level fields)
+    const hbEl = document.getElementById('vpn_home_bypass');
+    if (hbEl) { hbEl.checked = data.home_bypass_enabled === true; }
+    const hsEl = document.getElementById('vpn_home_ssids');
+    if (hsEl) { hsEl.value = data.home_ssids != null ? String(data.home_ssids).trim() : ''; }
     return true;
 }
 function applyVpnConfigToUi(data) {
@@ -5117,7 +5122,13 @@ async function saveVpnConfiguration()
         }
         vpnConfig.persistent_keepalive = parseInt(document.getElementById("wg_persistent_keepalive").value) || 0;
     }
-    
+
+    // Home-network bypass (stored regardless of VPN type)
+    const hbEl = document.getElementById("vpn_home_bypass");
+    if (hbEl) { vpnConfig.home_bypass_enabled = hbEl.checked; }
+    const hsEl = document.getElementById("vpn_home_ssids");
+    if (hsEl) { vpnConfig.home_ssids = (hsEl.value || '').trim(); }
+
     console.log('VPN config to save:', vpnConfig);
     
     const response = await fetch('/vpn/store_config', {

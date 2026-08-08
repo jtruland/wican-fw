@@ -32,6 +32,7 @@
 #include "dev_status.h"
 
 #include "vpn_wireguard.h"
+#include "vpn_config.h"
 
 #include "lwip/netif.h"
 
@@ -266,6 +267,8 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
         cJSON_AddBoolToObject(response, "success", true);
         cJSON_AddNumberToObject(response, "vpn_type", config.type);
         cJSON_AddBoolToObject(response, "enabled", config.enabled);
+        cJSON_AddBoolToObject(response, "home_bypass_enabled", config.home_bypass_enabled);
+        cJSON_AddStringToObject(response, "home_ssids", config.home_ssids);
 
         if (config.type == VPN_TYPE_WIREGUARD)
         {
@@ -301,25 +304,10 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
                         cJSON_AddStringToObject(wg, "dns_backup", config.config.wireguard.dns_backup);
                     }
                 }
-                // Combine allowed_ip and mask into CIDR format for response (generic mapping)
-                char allowed_ips_cidr[64];
-                int a=0,b=0,c=0,d=0; unsigned int prefix = 32;
-                if (sscanf(config.config.wireguard.allowed_ip_mask, "%d.%d.%d.%d", &a,&b,&c,&d) == 4)
-                {
-                    uint32_t mask = ((uint32_t)(a & 0xFF) << 24) | ((uint32_t)(b & 0xFF) << 16) |
-                                    ((uint32_t)(c & 0xFF) << 8)  | ((uint32_t)(d & 0xFF));
-                    if (mask == 0)
-                    {
-                        prefix = 0;
-                    }
-                    else
-                    {
-                        unsigned int count = 0; uint32_t bit = 0x80000000u;
-                        while (bit && (mask & bit)) { count++; bit >>= 1; }
-                        if ((mask << count) == 0) prefix = count; else prefix = 32;
-                    }
-                }
-                snprintf(allowed_ips_cidr, sizeof(allowed_ips_cidr), "%s/%u", config.config.wireguard.allowed_ip, prefix);
+                // Full route list (comma-separated CIDRs), not just one entry.
+                char allowed_ips_cidr[160];
+                vpn_config_format_routes(config.config.wireguard.routes, config.config.wireguard.route_count,
+                                          allowed_ips_cidr, sizeof(allowed_ips_cidr));
                 cJSON_AddStringToObject(wg, "allowed_ips", allowed_ips_cidr);
 
                 // Combine endpoint and port for response
@@ -342,6 +330,7 @@ static esp_err_t vpn_load_config_handler(httpd_req_t *req)
             case VPN_STATUS_CONNECTING: status_str = "connecting"; break;
             case VPN_STATUS_CONNECTED: status_str = "connected"; break;
             case VPN_STATUS_ERROR: status_str = "error"; break;
+            case VPN_STATUS_PAUSED_HOME: status_str = "paused_home"; break;
         }
         cJSON_AddStringToObject(response, "status", status_str);
 
@@ -626,45 +615,26 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
             strlcpy(config.config.wireguard.address, addr, sizeof(config.config.wireguard.address));
         }
 
-        // Allowed IPs (CIDR -> ip + mask)
+        // Allowed IPs / routes: comma-separated CIDR list, e.g.
+        // "10.100.0.0/24,192.168.86.0/24" -- each entry becomes a destination
+        // route over the tunnel (see vpn_route_hook.c), not the tunnel's own address.
         item = cJSON_GetObjectItem(json, "wg_allowed_ips");
         if (!cJSON_IsString(item)) item = cJSON_GetObjectItem(json, "allowed_ips");
         ESP_LOGI(TAG, "WireGuard allowed_ips: %s", item && cJSON_IsString(item) ? item->valuestring : "(not present)");
         if (cJSON_IsString(item))
         {
-            char cidr[64] = {0};
-            strlcpy(cidr, item->valuestring, sizeof(cidr)); trim_str(cidr);
-            char *slash = strchr(cidr, '/');
-            if (slash)
+            char list[160] = {0};
+            strlcpy(list, item->valuestring, sizeof(list)); trim_str(list);
+            vpn_config_parse_routes(list, config.config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                                     &config.config.wireguard.route_count);
+            ESP_LOGI(TAG, "Parsed %u route(s) from allowed_ips", (unsigned)config.config.wireguard.route_count);
+            if (config.config.wireguard.route_count > 0)
             {
-                *slash = '\0';
-                strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                int prefix = atoi(slash + 1);
-                ESP_LOGI(TAG, "Allowed IP: %s, CIDR prefix: %d", cidr, prefix);
-                if (prefix < 0)
-                {
-                    prefix = 0;
-                }
-                if (prefix > 32)
-                {
-                    prefix = 32;
-                }
-                uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
-                char mask_str[16];
-                snprintf(mask_str, sizeof(mask_str), "%u.%u.%u.%u",
-                         (unsigned)((mask >> 24) & 0xFF),
-                         (unsigned)((mask >> 16) & 0xFF),
-                         (unsigned)((mask >> 8) & 0xFF),
-                         (unsigned)(mask & 0xFF));
-                strlcpy(config.config.wireguard.allowed_ip_mask, mask_str, sizeof(config.config.wireguard.allowed_ip_mask));
-                ESP_LOGI(TAG, "Allowed IP mask: %s", mask_str);
-            }
-            else
-            {
-                // No prefix; default to /32
-                strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                strlcpy(config.config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config.config.wireguard.allowed_ip_mask));
-                ESP_LOGI(TAG, "Allowed IP: %s, default mask: 255.255.255.255", cidr);
+                // Mirror first route into legacy fields (back-compat only).
+                strlcpy(config.config.wireguard.allowed_ip, config.config.wireguard.routes[0].ip,
+                        sizeof(config.config.wireguard.allowed_ip));
+                strlcpy(config.config.wireguard.allowed_ip_mask, config.config.wireguard.routes[0].mask,
+                        sizeof(config.config.wireguard.allowed_ip_mask));
             }
         }
 
@@ -702,6 +672,37 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
         }
     }
 
+    // Home-network bypass settings (VPN-level, parsed regardless of type).
+    // Omitted fields preserve the stored values; an explicit empty home_ssids clears the list.
+    {
+        cJSON *hb = cJSON_GetObjectItem(json, "home_bypass_enabled");
+        if (cJSON_IsBool(hb))
+        {
+            config.home_bypass_enabled = cJSON_IsTrue(hb);
+        }
+        else if (cJSON_IsString(hb))
+        {
+            config.home_bypass_enabled = (strcmp(hb->valuestring, "true") == 0 || strcmp(hb->valuestring, "1") == 0);
+        }
+        else if (have_existing == ESP_OK)
+        {
+            config.home_bypass_enabled = existing.home_bypass_enabled;
+        }
+        ESP_LOGI(TAG, "Home bypass enabled: %d", (int)config.home_bypass_enabled);
+
+        cJSON *hs = cJSON_GetObjectItem(json, "home_ssids");
+        if (cJSON_IsString(hs))
+        {
+            strlcpy(config.home_ssids, hs->valuestring, sizeof(config.home_ssids));
+            trim_str(config.home_ssids);
+        }
+        else if (have_existing == ESP_OK)
+        {
+            strlcpy(config.home_ssids, existing.home_ssids, sizeof(config.home_ssids));
+        }
+        ESP_LOGI(TAG, "Home SSIDs: %s", config.home_ssids[0] ? config.home_ssids : "(none)");
+    }
+
     cJSON_Delete(json);
 
     // Basic validation when attempting to enable
@@ -711,8 +712,7 @@ static esp_err_t vpn_store_config_handler(httpd_req_t *req)
         if (config.config.wireguard.private_key[0] == '\0' ||
             config.config.wireguard.public_key[0] == '\0' ||
             config.config.wireguard.address[0] == '\0' ||
-            config.config.wireguard.allowed_ip[0] == '\0' ||
-            config.config.wireguard.allowed_ip_mask[0] == '\0' ||
+            config.config.wireguard.route_count == 0 ||
             config.config.wireguard.endpoint[0] == '\0' ||
             config.config.wireguard.port <= 0)
         {
@@ -967,34 +967,21 @@ static esp_err_t vpn_test_connection_handler(httpd_req_t *req)
                 strlcpy(config.config.wireguard.address, addr, sizeof(config.config.wireguard.address));
             }
 
-            // Allowed IPs (keep raw ip part + computed mask when CIDR)
+            // Allowed IPs / routes: comma-separated CIDR list (see store_config handler above).
             item = cJSON_GetObjectItem(json, "wg_allowed_ips");
             if (!cJSON_IsString(item)) item = cJSON_GetObjectItem(json, "allowed_ips");
             if (cJSON_IsString(item))
             {
-                char cidr[64] = {0};
-                strlcpy(cidr, item->valuestring, sizeof(cidr)); trim_str(cidr);
-                char *slash = strchr(cidr, '/');
-                if (slash)
+                char list[160] = {0};
+                strlcpy(list, item->valuestring, sizeof(list)); trim_str(list);
+                vpn_config_parse_routes(list, config.config.wireguard.routes, VPN_WG_MAX_ROUTES,
+                                         &config.config.wireguard.route_count);
+                if (config.config.wireguard.route_count > 0)
                 {
-                    *slash = '\0';
-                    strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                    int prefix = atoi(slash + 1);
-                    if (prefix < 0) prefix = 0;
-                    if (prefix > 32) prefix = 32;
-                    uint32_t mask = (prefix == 0) ? 0u : (0xFFFFFFFFu << (32 - prefix));
-                    char mask_str[16];
-                    snprintf(mask_str, sizeof(mask_str), "%u.%u.%u.%u",
-                             (unsigned)((mask >> 24) & 0xFF),
-                             (unsigned)((mask >> 16) & 0xFF),
-                             (unsigned)((mask >> 8) & 0xFF),
-                             (unsigned)(mask & 0xFF));
-                    strlcpy(config.config.wireguard.allowed_ip_mask, mask_str, sizeof(config.config.wireguard.allowed_ip_mask));
-                }
-                else
-                {
-                    strlcpy(config.config.wireguard.allowed_ip, cidr, sizeof(config.config.wireguard.allowed_ip));
-                    strlcpy(config.config.wireguard.allowed_ip_mask, "255.255.255.255", sizeof(config.config.wireguard.allowed_ip_mask));
+                    strlcpy(config.config.wireguard.allowed_ip, config.config.wireguard.routes[0].ip,
+                            sizeof(config.config.wireguard.allowed_ip));
+                    strlcpy(config.config.wireguard.allowed_ip_mask, config.config.wireguard.routes[0].mask,
+                            sizeof(config.config.wireguard.allowed_ip_mask));
                 }
             }
 
@@ -1118,6 +1105,7 @@ static esp_err_t vpn_status_handler(httpd_req_t *req)
         case VPN_STATUS_CONNECTING: status_str = "connecting"; break;
         case VPN_STATUS_CONNECTED: status_str = "connected"; break;
         case VPN_STATUS_ERROR: status_str = "error"; break;
+        case VPN_STATUS_PAUSED_HOME: status_str = "paused_home"; break;
     }
 
     cJSON_AddStringToObject(response, "status", status_str);
@@ -1168,6 +1156,7 @@ static esp_err_t vpn_debug_handler(httpd_req_t *req)
         case VPN_STATUS_CONNECTING: vpn_status_str = "connecting"; break;
         case VPN_STATUS_CONNECTED: vpn_status_str = "connected"; break;
         case VPN_STATUS_ERROR: vpn_status_str = "error"; break;
+        case VPN_STATUS_PAUSED_HOME: vpn_status_str = "paused_home"; break;
     }
     cJSON_AddStringToObject(response, "vpn_status", vpn_status_str);
     cJSON_AddNumberToObject(response, "vpn_status_code", vpn_status);
@@ -1247,6 +1236,14 @@ static esp_err_t vpn_debug_handler(httpd_req_t *req)
     bool blockers = dev_status_is_any_bit_set(DEV_AP_ENABLED_BIT | DEV_SLEEP_BIT);
     cJSON_AddBoolToObject(response, "gating_prereqs_ok", prereqs);
     cJSON_AddBoolToObject(response, "gating_blockers_present", blockers);
+
+    // Home-network bypass state (cfg was loaded in the config summary above; zeroed on failure)
+    cJSON_AddBoolToObject(response, "home_bypass_active", vpn_manager_home_bypass_active());
+    cJSON_AddBoolToObject(response, "home_bypass_enabled", cfg.home_bypass_enabled);
+    cJSON_AddStringToObject(response, "home_ssids", cfg.home_ssids);
+    char cur_ssid[33] = {0};
+    (void)vpn_manager_get_sta_ssid(cur_ssid, sizeof(cur_ssid));
+    cJSON_AddStringToObject(response, "sta_ssid", cur_ssid);
 
     // STA IP + DNS
     esp_netif_t *sta_netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");

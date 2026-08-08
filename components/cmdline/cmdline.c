@@ -277,6 +277,7 @@ static void process_command_io(char* cmd, const cmd_io_t *io)
     } else if (err == ESP_OK && ret != ESP_OK) {
         cmdline_printf("Command returned non-zero error code\n");
     } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_console_run failed: %s", esp_err_to_name(err));
         cmdline_printf("Internal error\n");
     }
 
@@ -315,6 +316,7 @@ esp_err_t cmdline_run(const char *cmd)
     } else if (err == ESP_OK && ret != ESP_OK) {
         cmdline_printf("Command returned non-zero error code\n");
     } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_console_run failed: %s", esp_err_to_name(err));
         cmdline_printf("Internal error\n");
     }
 
@@ -353,6 +355,7 @@ esp_err_t cmdline_run_on_ble(const char *cmd)
     } else if (err == ESP_OK && ret != ESP_OK) {
         cmdline_printf("Command returned non-zero error code\n");
     } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_console_run failed: %s", esp_err_to_name(err));
         cmdline_printf("Internal error\n");
     }
 
@@ -390,6 +393,7 @@ esp_err_t cmdline_run_with_output(const char *cmd, cmdline_output_func_t out)
     } else if (err == ESP_OK && ret != ESP_OK) {
         cmdline_printf("Command returned non-zero error code\n");
     } else if (err != ESP_OK) {
+        ESP_LOGW(TAG, "esp_console_run failed: %s", esp_err_to_name(err));
         cmdline_printf("Internal error\n");
     }
 

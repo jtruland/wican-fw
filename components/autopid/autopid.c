@@ -43,6 +43,7 @@
 #include <float.h>
 #include "obd_logger.h"
 #include "hw_config.h"
+#include "usb_host.h"
 #include "dev_status.h"
 #include "sleep_mode.h"
 #include "https_client_mgr.h"
@@ -3467,18 +3468,23 @@ static void autopid_webhook_task(void *pvParameters)
                                     cJSON_Delete(auto_obj);
                                 }
 
-                                // Add mock GPS data
-                                // cJSON *gps = cJSON_CreateObject();
-                                // if (gps)
-                                // {
-                                //     cJSON_AddNumberToObject(gps, "latitude", 37.7749);
-                                //     cJSON_AddNumberToObject(gps, "longitude", -122.4194);
-                                //     cJSON_AddNumberToObject(gps, "accuracy", 10);
-                                //     cJSON_AddNumberToObject(gps, "altitude", 25.5);
-                                //     cJSON_AddNumberToObject(gps, "speed", 15.3);
-                                //     cJSON_AddNumberToObject(gps, "heading", 180);
-                                //     cJSON_AddItemToObject(root_obj, "gps", gps);
-                                // }
+                                // Real GPS data from the USB CDC receiver (u-blox/VK-162).
+                                // Include the block only when we have a fix newer than 10s.
+                                usb_gps_fix_t gps_fix;
+                                if (usb_gps_get_fix(&gps_fix, 10000) && gps_fix.valid)
+                                {
+                                    cJSON *gps = cJSON_CreateObject();
+                                    if (gps)
+                                    {
+                                        cJSON_AddNumberToObject(gps, "latitude", gps_fix.latitude);
+                                        cJSON_AddNumberToObject(gps, "longitude", gps_fix.longitude);
+                                        cJSON_AddNumberToObject(gps, "altitude", gps_fix.altitude_m);
+                                        cJSON_AddNumberToObject(gps, "speed", gps_fix.speed_mps);
+                                        cJSON_AddNumberToObject(gps, "heading", gps_fix.heading_deg);
+                                        cJSON_AddNumberToObject(gps, "satellites", gps_fix.satellites);
+                                        cJSON_AddItemToObject(root_obj, "gps", gps);
+                                    }
+                                }
                                 char *printed = cJSON_PrintUnformatted(root_obj);
                                 if (printed)
                                 {

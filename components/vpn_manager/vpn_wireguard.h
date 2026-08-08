@@ -25,6 +25,8 @@
 #include <stdbool.h>
 #include "include/vpn_manager.h"
 
+struct netif; // lwIP netif, forward-declared to avoid a full lwip include here
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -39,7 +41,10 @@ esp_err_t vpn_wg_stop(void);
 
 // Helpers
 bool vpn_wg_is_peer_up(void);
-esp_err_t vpn_wg_set_default_route(void);
+
+// Returns the WG lwIP netif when the peer is up, else NULL. Used by
+// vpn_route_hook.c to decide whether wg0 is a valid routing target.
+struct netif *vpn_wg_get_netif(void);
 
 #ifdef __cplusplus
 }

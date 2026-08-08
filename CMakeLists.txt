@@ -72,3 +72,10 @@ add_definitions(-DHARDWARE_VERSION="${HW_VER}")
 # Form the project binary name
 set(PRJ_BIN "${PROJECT_PREF}_${HW_PREF}_${GIT_SHA}")
 project("${PRJ_BIN}")
+
+# WG split-tunnel: inject a destination-based IPv4 route hook into lwip,
+# replacing the stock source-address hook. Same mechanism as Espressif's own
+# examples/network/vlan_support example.
+idf_component_get_property(lwip lwip COMPONENT_LIB)
+target_compile_options(${lwip} PRIVATE "-I${CMAKE_SOURCE_DIR}/components/vpn_manager/include")
+target_compile_definitions(${lwip} PRIVATE "-DESP_IDF_LWIP_HOOK_FILENAME=\"vpn_route_hook.h\"")
