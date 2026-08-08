@@ -10,7 +10,7 @@
     "description": "AC Charging Current",
     "settings": {
       "unit": "A",
-      "class": "battery"
+      "class": "current"
     }
   },
   "AC_C_V": {
@@ -287,7 +287,7 @@
     "description": "High Voltage Battery Power Available",
     "settings": {
       "unit": "kW",
-      "class": "battery"
+      "class": "power"
     }
   },
   "HV_CAPACITY": {
@@ -301,14 +301,14 @@
     "description": "HV Battery capacity in kWh",
     "settings": {
       "unit": "kWh",
-      "class": "none"
+      "class": "energy"
     }
   },
   "HV_CAPACITY_R": {
     "description": "HV Battery capacity Remaining",
     "settings": {
       "unit": "kWh",
-      "class": "none"
+      "class": "energy"
     }
   },
   "HV_C_DIFF": {
@@ -2117,7 +2117,7 @@
     "description": "Battery Remaining Energy",
     "settings": {
       "unit": "Wh",
-      "class": "battery",
+      "class": "energy",
       "min": "0",
       "max": "77000"
     }
@@ -2508,8 +2508,8 @@
   "KWH_CHARGED": {
     "description": "Total kWh Charged (Cumulative Energy Charged)",
     "settings": {
-      "unit": "kwh",
-      "class": "battery",
+      "unit": "kWh",
+      "class": "energy",
       "min": "0",
       "max": "1000000"
     }
@@ -2518,7 +2518,7 @@
     "description": "Total kWH Discharged( Cumulative Energy Discharged)",
     "settings": {
       "unit": "kWh",
-      "class": "none",
+      "class": "energy",
       "min": "0",
       "max": "1000000"
     }
