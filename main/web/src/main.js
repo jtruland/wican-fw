@@ -4862,6 +4862,7 @@ function tryApplyVPN(data) {
     const addrEl = document.getElementById('wg_address');
     const allowedEl = document.getElementById('wg_allowed_ips');
     const epEl = document.getElementById('wg_endpoint');
+    const dnsEl = document.getElementById('wg_dns');
     const keepEl = document.getElementById('wg_persistent_keepalive');
     if (!enabledEl) {
         return false;
@@ -4884,6 +4885,13 @@ function tryApplyVPN(data) {
     if (addrEl) { addrEl.value = wg.address != null ? String(wg.address).trim() : ''; }
     if (allowedEl) { allowedEl.value = wg.allowed_ips != null ? String(wg.allowed_ips).trim() : ''; }
     if (epEl) { epEl.value = wg.endpoint != null ? String(wg.endpoint).trim() : ''; }
+    // load_config reports DNS as two separate fields; the form takes one comma-separated list.
+    if (dnsEl) {
+        dnsEl.value = [wg.dns_main, wg.dns_backup]
+            .map(v => (v == null ? '' : String(v).trim()))
+            .filter(Boolean)
+            .join(', ');
+    }
     if (keepEl) { const n = Number(wg.persistent_keepalive); keepEl.value = Number.isFinite(n) ? String(n) : '0'; }
     // Home-network bypass (top-level fields)
     const hbEl = document.getElementById('vpn_home_bypass');
@@ -4967,8 +4975,12 @@ function parseWireGuardConfig(configText)
         pskEl.value = '';
     }
 
-    // Track imported DNS (IPv4 only) for submit/test payloads.
-    window.wgImportedDns = { main: '', backup: '' };
+    // Clear DNS before parsing so a new import cannot inherit the previous one.
+    const dnsEl = document.getElementById('wg_dns');
+    if (dnsEl)
+    {
+        dnsEl.value = '';
+    }
 
     // Accumulate AllowedIPs across multiple lines and comma-separated lists.
     const allowedIps = [];
@@ -5014,8 +5026,12 @@ function parseWireGuardConfig(configText)
                             // DNS may be comma-separated; keep first two IPv4.
                             const parts = value.split(',').map(s => s.trim()).filter(Boolean);
                             const v4 = parts.filter(s => /^\d{1,3}(?:\.\d{1,3}){3}$/.test(s));
-                            window.wgImportedDns.main = v4[0] || '';
-                            window.wgImportedDns.backup = v4[1] || '';
+                            // Populate the visible field rather than a hidden global, so an
+                            // imported DNS can be seen and edited like every other setting.
+                            if (document.getElementById('wg_dns'))
+                            {
+                                document.getElementById('wg_dns').value = v4.slice(0, 2).join(', ');
+                            }
                             fieldsFound++;
                         }
                         break;
@@ -5114,12 +5130,11 @@ async function saveVpnConfiguration()
         vpnConfig.address = document.getElementById("wg_address").value;
         vpnConfig.allowed_ips = document.getElementById("wg_allowed_ips").value;
         vpnConfig.endpoint = document.getElementById("wg_endpoint").value;
-        // Optional DNS parsed from imported config (IPv4 only)
-        if (window.wgImportedDns && (window.wgImportedDns.main || window.wgImportedDns.backup))
-        {
-            const dns = [window.wgImportedDns.main, window.wgImportedDns.backup].filter(Boolean).join(',');
-            vpnConfig.dns = dns;
-        }
+        // DNS is a real form field now, so send it every time - including when empty.
+        // The device reads an empty string as an explicit clear and a missing field as
+        // "keep what is stored", so omitting it would make clearing DNS impossible.
+        const dnsEl = document.getElementById("wg_dns");
+        if (dnsEl) { vpnConfig.dns = dnsEl.value.trim(); }
         vpnConfig.persistent_keepalive = parseInt(document.getElementById("wg_persistent_keepalive").value) || 0;
     }
 
@@ -5222,12 +5237,9 @@ async function testVpnConnection()
             vpnConfig.address = document.getElementById("wg_address").value;
             vpnConfig.allowed_ips = document.getElementById("wg_allowed_ips").value;
             vpnConfig.endpoint = document.getElementById("wg_endpoint").value;
-            // Optional DNS parsed from imported config (IPv4 only)
-            if (window.wgImportedDns && (window.wgImportedDns.main || window.wgImportedDns.backup))
-            {
-                const dns = [window.wgImportedDns.main, window.wgImportedDns.backup].filter(Boolean).join(',');
-                vpnConfig.dns = dns;
-            }
+            // Test what is actually in the form, DNS included.
+            const dnsEl = document.getElementById("wg_dns");
+            if (dnsEl) { vpnConfig.dns = dnsEl.value.trim(); }
             vpnConfig.persistent_keepalive = parseInt(document.getElementById("wg_persistent_keepalive").value) || 0;
         }
 
