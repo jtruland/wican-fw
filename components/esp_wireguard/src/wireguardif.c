@@ -125,33 +125,6 @@ static bool wireguardif_can_send_initiation(struct wireguard_peer *peer) {
 	return ((peer->last_initiation_tx == 0) || (wireguard_expired(peer->last_initiation_tx, REKEY_TIMEOUT)));
 }
 
-/* Carried forward from wican-pro (a1b680e). The microlink branch predates that
- * commit, so its rewrite of this file does not contain this helper - but the
- * teardown guards it provides still matter here, particularly because the device
- * stops the VPN on entry to sleep. */
-static bool wireguardif_underlying_netif_ready(const struct wireguard_device *device) {
-	struct netif *underlying_netif;
-
-	if (!device || device->shutting_down || (device->magic != WIREGUARD_DEVICE_MAGIC) || !device->udp_pcb) {
-		return false;
-	}
-
-	underlying_netif = device->underlying_netif;
-	if (!underlying_netif) {
-		return false;
-	}
-
-	if (!netif_is_up(underlying_netif) || !netif_is_link_up(underlying_netif)) {
-		return false;
-	}
-
-	if (ip_addr_isany(&underlying_netif->ip_addr)) {
-		return false;
-	}
-
-	return true;
-}
-
 static err_t wireguardif_peer_output(struct netif *netif, struct pbuf *q, struct wireguard_peer *peer) {
 	struct wireguard_device *device = (struct wireguard_device *)netif->state;
 
@@ -214,10 +187,6 @@ static err_t wireguardif_peer_output(struct netif *netif, struct pbuf *q, struct
 
 	// Send to last known port, not the connect port
 	//TODO: Support DSCP and ECN - lwip requires this set on PCB globally, not per packet
-	if (!wireguardif_underlying_netif_ready(device)) {
-		return ERR_IF;
-	}
-
 	return udp_sendto(device->udp_pcb, q, &peer->ip, peer->port);
 }
 
@@ -235,9 +204,6 @@ static err_t wireguardif_device_output(struct wireguard_device *device, struct p
 		return ERR_MEM;
 	}
 
-	if (!wireguardif_underlying_netif_ready(device)) {
-		return ERR_IF;
-	}
 	return udp_sendto(device->udp_pcb, q, ipaddr, port);
 }
 
