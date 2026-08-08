@@ -152,6 +152,23 @@ esp_err_t vpn_keygen_generate_wireguard_keys(char *private_key_b64,
         goto cleanup_wipe;
     }
 
+    // An X25519 public key is the X coordinate in little-endian (RFC 7748), and that is
+    // already exactly what mbedtls hands back here: mbedtls_ecp_point_write_binary()
+    // writes Montgomery points with mbedtls_mpi_write_binary_le(). Take the bytes as-is.
+    //
+    // This code used to REVERSE the 32-byte result, commented "Big-endian X only ->
+    // reverse to little-endian". That premise is wrong, so the reversal did not convert
+    // the key - it corrupted it, byte-reversing every public key the device ever
+    // reported while the private key (written with the same helper used above) stayed
+    // correct.
+    //
+    // The failure is invisible from both ends: a reversed key is still valid-looking
+    // base64 of the right length, so it configures cleanly on any peer and simply never
+    // completes a handshake. The server drops the initiation before any counter moves
+    // (rx stays 0), because it cannot match the initiator's static key to a peer.
+    // Diagnosed 2026-08-08 by packet-capturing 148-byte initiations arriving at the
+    // server with rx=0, then completing a handshake on the first try with the reported
+    // key's bytes reversed. Upstream: meatpiHQ/wican-fw#874.
     {
         unsigned char pub_tmp[65];
         size_t plen = 0;
@@ -165,27 +182,16 @@ esp_err_t vpn_keygen_generate_wireguard_keys(char *private_key_b64,
             goto cleanup_wipe;
         }
 
-        if (plen == 32)
+        if (plen != 32)
         {
-            // Big-endian X only -> reverse to little-endian
-            for (size_t i = 0; i < 32; ++i)
-            {
-                pk[i] = pub_tmp[31 - i];
-            }
-        }
-        else if (plen == 65 && pub_tmp[0] == 0x04)
-        {
-            // Uncompressed: 0x04 || X(32) || Y(32). Take X and reverse.
-            for (size_t i = 0; i < 32; ++i)
-            {
-                pk[i] = pub_tmp[1 + 31 - i];
-            }
-        }
-        else
-        {
+            // Curve25519 is the only group this function loads, and mbedtls writes
+            // Montgomery points as a bare 32-byte X. Anything else means the group
+            // changed underneath us; refuse rather than emit a malformed key.
             ESP_LOGE(TAG_WG_KG, "unexpected public key size: %u", (unsigned)plen);
             goto cleanup_wipe;
         }
+
+        memcpy(pk, pub_tmp, 32);
     }
 
     // Base64 encode
