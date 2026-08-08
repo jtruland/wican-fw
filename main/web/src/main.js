@@ -3803,44 +3803,66 @@ function send_system_command(command) {
 }
 
 async function downloadCfg() {
+    // Explicit url -> key mapping. The old code derived the key with
+    // endpoint.replace('/load_', ''), which only works for top-level /load_* routes and
+    // mangles nested ones (/vpn/load_config would become "/vpnconfig").
+    //
+    // Previously only the first four were exported, so VPN, webhooks, certificates and
+    // car_config were silently absent from every "backup" - with no warning, which is
+    // the worst property a backup can have.
     const endpoints = [
-        '/load_config',
-        '/load_auto_pid_car_data',
-        '/load_auto_pid',
-        '/load_canflt'
+        { url: '/load_config',            key: 'config' },
+        { url: '/load_auto_pid_car_data', key: 'auto_pid_car_data' },
+        { url: '/load_auto_pid',          key: 'auto_pid' },
+        { url: '/load_canflt',            key: 'canflt' },
+        { url: '/load_car_config',        key: 'car_config' },
+        { url: '/vpn/load_config',        key: 'vpn' },
+        { url: '/api/webhook',            key: 'webhooks' },
+        { url: '/cert_manager/sets',      key: 'certs' }
     ];
-    
-    const delay = 500; 
+
+    const delay = 500;
     let combinedData = {};
     let hasErrors = false;
-    
+    const missing = [];
+
     try {
         for (let i = 0; i < endpoints.length; i++) {
             const endpoint = endpoints[i];
-            
+
             try {
-                const response = await fetch(endpoint);
-                
+                const response = await fetch(endpoint.url);
+
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-                
-                const data = await response.json();
-                const key = endpoint.replace('/load_', '');
-                combinedData[key] = data;
+
+                combinedData[endpoint.key] = await response.json();
             } catch (fetchError) {
                 hasErrors = true;
+                missing.push(endpoint.key);
             }
-            
+
             if (i < endpoints.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
-        
+
         if (Object.keys(combinedData).length === 0) {
             throw new Error('No data was successfully fetched from any endpoint');
         }
-        
+
+        // State plainly what this file is NOT. It looks like a complete backup and is
+        // not one: the device never discloses the WireGuard private key, the preshared
+        // key, or stored passwords, and certificates are exported as presence metadata
+        // only. Those must be re-entered after a restore.
+        combinedData._meta = {
+            secrets_included: false,
+            note: 'Secrets are NOT exported: WireGuard private key and preshared key, ' +
+                  'WiFi/MQTT passwords, and certificate key material. Re-enter them after restoring.',
+            sections_missing: missing
+        };
+
         const dataStr = JSON.stringify(combinedData, null, 0);
         const blob = new Blob([dataStr], { type: 'application/json' });
         const url = window.URL.createObjectURL(blob);
@@ -3863,16 +3885,71 @@ async function downloadCfg() {
     }
 }
 
+// Convert an exported config section into the payload its store route expects.
+//
+// This exists because /vpn/load_config and /vpn/store_config are NOT symmetric. The
+// read side returns {vpn_type, enabled, wireguard:{...}}; the write side ignores all of
+// that and wants a FLAT object whose "vpn_enabled" is the literal string "wireguard".
+// POSTing the read shape straight back does not restore the VPN - it silently DISABLES
+// it and erases the stored WireGuard block including the device's keypair, because
+// vpn_config_save() only serialises that block when the type is WireGuard. Replaying an
+// export without this transform is a config-destroying operation that reports success.
+//
+// private_key and preshared_key are deliberately never sent: they are not in the export
+// (the device never discloses them), and store_config preserves whatever it already has
+// when a field is omitted. Sending an empty string would clear them instead.
+function configSectionToPayload(key, data)
+{
+    if (key !== 'vpn')
+    {
+        return data;
+    }
+    if (!data || !data.wireguard)
+    {
+        return null;
+    }
+
+    const wg = data.wireguard;
+    const isWg = !!data.enabled &&
+                 (String(data.vpn_type).toLowerCase() === 'wireguard' || data.vpn_type === 1);
+
+    const out = {
+        vpn_enabled: isWg ? 'wireguard' : 'disable',
+        home_bypass_enabled: !!data.home_bypass_enabled,
+        home_ssids: data.home_ssids || ''
+    };
+
+    if (isWg)
+    {
+        out.peer_public_key = wg.peer_public_key || '';
+        out.address = wg.address || '';
+        out.allowed_ips = wg.allowed_ips || '';
+        out.endpoint = wg.endpoint || '';
+        out.persistent_keepalive = wg.persistent_keepalive || 0;
+        const dns = [wg.dns_main, wg.dns_backup].filter(Boolean).join(',');
+        if (dns)
+        {
+            out.dns = dns;
+        }
+    }
+
+    return out;
+}
+
 async function uploadCfg() {
     const fileInput = document.getElementById('fileInput');
     const file = fileInput.files[0];
     if (!file) return;
 
+    // car_config and certs are export-only: the firmware has no store route for
+    // car_config, and certificates cannot be restored from presence metadata alone.
     const endpointMap = {
         'config': '/store_config',
         'auto_pid': '/store_auto_data',
         'auto_pid_car_data': '/store_car_data',
-        'canflt': '/store_canflt'
+        'canflt': '/store_canflt',
+        'vpn': '/vpn/store_config',
+        'webhooks': '/api/webhook'
     };
 
     const delay = 200;
@@ -3887,13 +3964,17 @@ async function uploadCfg() {
 
                 for (const [key, endpoint] of Object.entries(endpointMap)) {
                     if (jsonData[key]) {
+                        const payload = configSectionToPayload(key, jsonData[key]);
+                        if (!payload) {
+                            continue;
+                        }
                         try {
                             const response = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
                                 },
-                                body: JSON.stringify(jsonData[key], null, 0)
+                                body: JSON.stringify(payload, null, 0)
                             });
 
                             if (!response.ok) {
