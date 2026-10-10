@@ -28,15 +28,20 @@ else()
         # components/meatpi/ is gitignored) so the search finds it on
         # every future configure.
         set(_meatpi_dest "${CMAKE_CURRENT_LIST_DIR}/components/meatpi")
-        set(_meatpi_url "https://github.com/meatpiHQ/meatpi-components.git")
+        # bitz fork: our components fork, on the branch carrying the ports
+        set(_meatpi_url "https://github.com/jtruland/meatpi-components.git")
+        set(_meatpi_ref "bitz/v6")
         if(DEFINED ENV{MEATPI_COMPONENTS_GIT_URL})
             set(_meatpi_url "$ENV{MEATPI_COMPONENTS_GIT_URL}")
+        endif()
+        if(DEFINED ENV{MEATPI_COMPONENTS_GIT_REF})
+            set(_meatpi_ref "$ENV{MEATPI_COMPONENTS_GIT_REF}")
         endif()
         message(STATUS "meatpi-components not found: cloning "
                        "${_meatpi_url} into ${_meatpi_dest}")
         execute_process(
             COMMAND ${CMAKE_COMMAND} -E env GIT_TERMINAL_PROMPT=0
-                    git clone "${_meatpi_url}" "${_meatpi_dest}"
+                    git clone -b "${_meatpi_ref}" "${_meatpi_url}" "${_meatpi_dest}"
             RESULT_VARIABLE _meatpi_clone_rc)
         if(_meatpi_clone_rc EQUAL 0 AND EXISTS "${_meatpi_dest}/components")
             set(MEATPI_COMPONENTS_PATH "${_meatpi_dest}/components")
@@ -134,3 +139,13 @@ project("${WICAN_PRJ_BIN}")
 # artifact only; zero runtime cost. Motivated by the 2026-07-22 silent
 # PSRAM-stack overflow (autopid DTC job task).
 idf_build_set_property(COMPILE_OPTIONS "-fstack-usage" APPEND)
+
+# bitz fork: WireGuard split-tunnel routing. Inject vpn_manager's
+# destination-CIDR route hook into lwIP (it wraps the stock
+# LWIP_HOOK_IP4_ROUTE_SRC); same mechanism as Espressif's vlan_support
+# example. See components/vpn_manager/include/vpn_route_hook.h.
+idf_component_get_property(_lwip_lib lwip COMPONENT_LIB)
+target_include_directories(${_lwip_lib} PRIVATE
+    "${MEATPI_COMPONENTS_PATH}/vpn_manager/include")
+target_compile_definitions(${_lwip_lib} PRIVATE
+    "ESP_IDF_LWIP_HOOK_FILENAME=\"vpn_route_hook.h\"")
