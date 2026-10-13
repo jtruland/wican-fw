@@ -28,15 +28,20 @@ else()
         # components/meatpi/ is gitignored) so the search finds it on
         # every future configure.
         set(_meatpi_dest "${CMAKE_CURRENT_LIST_DIR}/components/meatpi")
-        set(_meatpi_url "https://github.com/meatpiHQ/meatpi-components.git")
+        # bitz fork: our components fork, on the branch carrying the ports
+        set(_meatpi_url "https://github.com/jtruland/meatpi-components.git")
+        set(_meatpi_ref "bitz/v6-alfa04")
         if(DEFINED ENV{MEATPI_COMPONENTS_GIT_URL})
             set(_meatpi_url "$ENV{MEATPI_COMPONENTS_GIT_URL}")
+        endif()
+        if(DEFINED ENV{MEATPI_COMPONENTS_GIT_REF})
+            set(_meatpi_ref "$ENV{MEATPI_COMPONENTS_GIT_REF}")
         endif()
         message(STATUS "meatpi-components not found: cloning "
                        "${_meatpi_url} into ${_meatpi_dest}")
         execute_process(
             COMMAND ${CMAKE_COMMAND} -E env GIT_TERMINAL_PROMPT=0
-                    git clone "${_meatpi_url}" "${_meatpi_dest}"
+                    git clone -b "${_meatpi_ref}" "${_meatpi_url}" "${_meatpi_dest}"
             RESULT_VARIABLE _meatpi_clone_rc)
         if(_meatpi_clone_rc EQUAL 0 AND EXISTS "${_meatpi_dest}/components")
             set(MEATPI_COMPONENTS_PATH "${_meatpi_dest}/components")
