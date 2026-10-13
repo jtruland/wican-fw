@@ -632,6 +632,65 @@ class Converter:
         dm = self.ap.get("webhook_data_mode") if isinstance(self.ap, dict) else None
         if isinstance(dm, str) and dm:
             self.put("auto_pid.webhook_data_mode", C, "data_mode", dm)
+        self.map_webhook_destination(urls)
+
+    def map_webhook_destination(self, wh_urls):
+        """v4 can reach HA through an AutoPID HTTP(S) *destination* instead of
+        its own webhook (the Sierra did: webhook_en off, posts via a
+        destination with an api_key_query auth that a Cloudflare WAF rule
+        expects). v6 has no such destination type for HA, so carry it into
+        ha_webhooks: url = destination + ?<name>=<key>, enabled, the
+        destination's cert_set, and manual_override so ha-wican v3's own URL
+        push (which has no key) cannot replace it."""
+        C = "ha_webhooks"
+        dests = self.ap.get("destinations") if isinstance(self.ap, dict) else None
+        dest = None
+        for d in dests if isinstance(dests, list) else []:
+            if (isinstance(d, dict) and d.get("enabled") is True
+                    and str(d.get("type", "")).upper() in ("HTTP", "HTTPS")
+                    and "/api/webhook/" in str(d.get("destination", ""))):
+                dest = d
+                break
+        if dest is None:
+            return
+        url = dest["destination"]
+        auth = dest.get("auth") if isinstance(dest.get("auth"), dict) else {}
+        if auth.get("type") == "api_key_query":
+            name, key = auth.get("api_key_query_name"), auth.get("api_key")
+            if not (isinstance(name, str) and name and isinstance(key, str) and key):
+                self.r.drop("auto_pid.destinations[HA].auth",
+                            "api_key_query without a name/key: not carried")
+                return
+            url += ("&" if "?" in url else "?") + "%s=%s" % (name, key)
+        elif auth.get("type") not in (None, "", "none"):
+            self.r.drop("auto_pid.destinations[HA].auth",
+                        "auth type %r has no ha_webhooks equivalent: the "
+                        "destination is not carried" % auth.get("type"))
+            return
+        src = "auto_pid.destinations[HA]"
+        if not self.put(src, C, "url", url):
+            return
+        # the second URL: the v4 webhook URL on a different host (e.g. the
+        # LAN address), so the device still has a path if the first fails
+        host = url.split("/")[2] if url.count("/") >= 2 else ""
+        alt = [u for u in wh_urls if u.split("/")[2:3] != [host]]
+        if alt:
+            self.put("api_webhook.urls (other host)", C, "url2", alt[0])
+        elif ("ha_webhooks", "url2") in self.src:
+            self.out[C].pop("url2", None)
+            self.src.pop((C, "url2"), None)
+        self.put(src + ".enabled", C, "enabled", True)
+        self.put(src, C, "manual_override", True)
+        cs = dest.get("cert_set")
+        if isinstance(cs, str) and cs:
+            self.put(src + ".cert_set", C, "cert_set", cs)
+            self.r.note("ha_webhooks.cert_set = %r: certificate CONTENTS are not "
+                        "exported by v4; upload that set on v6 before the "
+                        "webhook can verify TLS." % cs)
+        self.r.note("ha_webhooks carries the AutoPID HA destination (v4 posted "
+                    "to HA through it, not through its webhook); "
+                    "manual_override on so ha-wican v3's keyless URL push "
+                    "cannot replace it.")
 
     def map_autopid(self):
         c, a = self.cfg, self.ap if isinstance(self.ap, dict) else {}
