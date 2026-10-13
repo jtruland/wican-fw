@@ -17,6 +17,9 @@ v6 has no importer of its own: a v4 → v6 OTA starts from defaults.
    - `--wg-route` (default `10.200.0.0/24`): v6 routes nothing through WireGuard that is not
      listed, so the tunnel's own subnet must be given. `--vpn-off` to skip the tunnel.
    - `--ap-password`: v6 refuses the factory `@meatpi#`.
+   - `--motion-mg N` (bitz): set the motion threshold directly instead of deriving it from
+     v4 `imu_threshold` × 3.9 mg. The Sierra uses **78** (2026-10-13: halfway between its v4
+     value, 8 → 31 mg, and the fork default 125 mg).
 3. **On the v6 device, before restoring:** generate a WireGuard key (v4 never exported the
    private key; the backup carries it blank, which means "keep the device's") and register
    its public key on the server; set a non-factory AP password, or pass `--ap-password`.
