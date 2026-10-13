@@ -468,7 +468,15 @@ class Converter:
             else:
                 self.r.drop("wakeup_interval", "v4 ignored it (outside 5..240 min)")
         th = self.as_int(c.get("imu_threshold"))
-        if th is not None:
+        if self.args.motion_mg is not None:
+            if self.field(C, "motion_mg") is None or self.args.target != "bitz":
+                self.r.drop("--motion-mg", "target firmware has no "
+                            "sleep_manager.motion_mg")
+            elif self.put("--motion-mg", C, "motion_mg", self.args.motion_mg):
+                self.r.note("sleep_manager.motion_mg = %d mg from --motion-mg "
+                            "(overrides v4 imu_threshold %s)" % (
+                                self.args.motion_mg, th))
+        elif th is not None:
             if self.field(C, "motion_mg") is None or self.args.target != "bitz":
                 self.r.drop("imu_threshold", "target firmware has no "
                             "sleep_manager.motion_mg")
@@ -883,6 +891,9 @@ def main(argv=None):
     ap.add_argument("--target", choices=("bitz", "upstream"), default="bitz",
                     help="bitz = our fork (sleep_manager.motion_mg exists)")
     ap.add_argument("--ap-password", help="set the v6 AP password (8..64)")
+    ap.add_argument("--motion-mg", type=int,
+                    help="bitz only: set sleep_manager.motion_mg instead of "
+                         "deriving it from v4 imu_threshold x 3.9")
     ap.add_argument("--vpn-off", action="store_true",
                     help="emit the tunnel disabled whatever v4 had")
     ap.add_argument("--schema", default=os.path.join(HERE, "v6_schema.json"))
