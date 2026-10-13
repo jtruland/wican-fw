@@ -1,0 +1,2636 @@
+{
+ "generated_by": "extract_schema.py",
+ "upstream": "meatpi-components@e786dd5 (upstream alfa-04)",
+ "fork": "meatpi-components@bitz/v6-alfa04 (sleep_manager only)",
+ "warnings": [],
+ "components": {
+  "autopid": {
+   "version": 8,
+   "source": "components/autopid/autopid_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "std_enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "custom_enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "specific_enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "std_init",
+     "type": "string",
+     "default": "",
+     "maxlen": 95
+    },
+    {
+     "key": "custom_init",
+     "type": "string",
+     "default": "",
+     "maxlen": 95
+    },
+    {
+     "key": "specific_init",
+     "type": "string",
+     "default": "",
+     "maxlen": 95
+    },
+    {
+     "key": "std_protocol",
+     "type": "string",
+     "default": "0",
+     "enum": [
+      "0",
+      "6",
+      "7",
+      "8",
+      "9"
+     ]
+    },
+    {
+     "key": "vehicle",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "pause_below_mv",
+     "type": "int",
+     "min": 0,
+     "max": 14500,
+     "default": 0
+    },
+    {
+     "key": "pause_follow_sleep",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "pause_mode",
+     "type": "string",
+     "default": "requests_only",
+     "enum": [
+      "all",
+      "requests_only"
+     ]
+    },
+    {
+     "key": "min_event_interval_ms",
+     "type": "int",
+     "min": 10,
+     "max": 600000,
+     "default": 1000
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "dtc_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "dtc_allow_clear",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "dtc_scan_period_min",
+     "type": "int",
+     "min": 0,
+     "max": 10080,
+     "default": 0
+    },
+    {
+     "key": "dtc_pending",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "dtc_permanent",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "dtc_freeze",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "dtc_init",
+     "type": "string",
+     "default": "",
+     "maxlen": 95
+    },
+    {
+     "key": "dtc_rxheader",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "dtc_protocol",
+     "type": "string",
+     "default": "obd",
+     "enum": [
+      "obd",
+      "uds",
+      "auto"
+     ]
+    },
+    {
+     "key": "dtc_uds_txid",
+     "type": "string",
+     "default": "7E0",
+     "maxlen": 8
+    },
+    {
+     "key": "dtc_uds_rxid",
+     "type": "string",
+     "default": "7E8",
+     "maxlen": 8
+    },
+    {
+     "key": "dtc_uds_ext",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "dtc_uds_mask",
+     "type": "int",
+     "min": 0,
+     "max": 255,
+     "default": 8
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "battery_monitor": {
+   "version": 1,
+   "source": "components/battery_monitor/battery_monitor_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "poll_s",
+     "type": "int",
+     "min": 1,
+     "max": 60,
+     "default": 3
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "ble_central_bench": {
+   "version": 1,
+   "source": "components/ble_central_bench/ble_central_bench_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "target",
+     "type": "string",
+     "default": "WiC_",
+     "maxlen": 31
+    },
+    {
+     "key": "passkey",
+     "type": "int",
+     "min": 0,
+     "max": 999999,
+     "default": 123456
+    },
+    {
+     "key": "mtu",
+     "type": "int",
+     "min": 23,
+     "max": 517,
+     "default": 517
+    },
+    {
+     "key": "conn_itvl_units",
+     "type": "int",
+     "min": 6,
+     "max": 3200,
+     "default": 6
+    },
+    {
+     "key": "ce_len_units",
+     "type": "int",
+     "min": 0,
+     "max": 65535,
+     "default": 24
+    },
+    {
+     "key": "dle",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "phy",
+     "type": "string",
+     "default": "1m",
+     "enum": [
+      "1m",
+      "2m"
+     ]
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "ble_http": {
+   "version": 1,
+   "source": "components/ble_http/ble_http_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "ble_manager": {
+   "version": 4,
+   "source": "components/ble_manager/ble_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "passkey",
+     "type": "int",
+     "min": 0,
+     "max": 999999,
+     "default": 123456
+    },
+    {
+     "key": "tx_power_dbm",
+     "type": "int",
+     "min": -12,
+     "max": 9,
+     "default": 9
+    },
+    {
+     "key": "pairing_at_boot",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "bonding",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sc_only",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "conn_profile",
+     "type": "string",
+     "default": "ios",
+     "enum": [
+      "ios",
+      "android_fast"
+     ]
+    },
+    {
+     "key": "phy",
+     "type": "string",
+     "default": "1m",
+     "enum": [
+      "1m",
+      "2m",
+      "coded",
+      "auto"
+     ]
+    },
+    {
+     "key": "advertising",
+     "type": "string",
+     "default": "legacy",
+     "enum": [
+      "legacy",
+      "extended",
+      "both"
+     ]
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "bridge_manager": {
+   "version": 1,
+   "source": "components/bridge_manager/bridge_manager_settings.c",
+   "fields": [
+    {
+     "key": "bridges",
+     "type": "array",
+     "max_items": 6,
+     "items": [
+      {
+       "key": "name",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "a",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "b",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "translator",
+       "type": "string",
+       "default": "raw",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "enabled",
+       "type": "bool",
+       "default": false
+      }
+     ],
+     "default": [
+      {
+       "name": "br_obd",
+       "a": "obd",
+       "b": "ws_obd",
+       "translator": "raw",
+       "enabled": true
+      },
+      {
+       "name": "br_tcp_obd",
+       "a": "obd0",
+       "b": "obd",
+       "translator": "raw",
+       "enabled": true
+      },
+      {
+       "name": "br_usb_obd",
+       "a": "usb_obd",
+       "b": "obd",
+       "translator": "raw",
+       "enabled": true
+      }
+     ]
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "button_manager": {
+   "version": 1,
+   "source": "components/button_manager/button_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "hold_s",
+     "type": "int",
+     "min": 1,
+     "max": 30,
+     "default": 5
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "can_manager": {
+   "version": 2,
+   "source": "components/can_manager/can_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "baud",
+     "type": "string",
+     "default": "500",
+     "enum": [
+      "auto",
+      "33",
+      "83",
+      "95",
+      "100",
+      "125",
+      "250",
+      "500",
+      "1000"
+     ]
+    },
+    {
+     "key": "silent",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "cmdline_manager": {
+   "version": 1,
+   "source": "components/cmdline_manager/cmdline_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "uart",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "config_backup": {
+   "version": 1,
+   "source": "components/config_backup/config_backup_settings.c",
+   "fields": [
+    {
+     "key": "auto_copy",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "data_destinations": {
+   "version": 1,
+   "source": "components/data_destinations/data_destinations_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "destinations",
+     "type": "array",
+     "max_items": 8,
+     "items": [
+      {
+       "key": "name",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "type",
+       "type": "string",
+       "required": true,
+       "default": "mqtt",
+       "enum": [
+        "mqtt",
+        "http",
+        "https",
+        "abrp"
+       ]
+      },
+      {
+       "key": "enabled",
+       "type": "bool",
+       "default": true
+      },
+      {
+       "key": "url",
+       "type": "string",
+       "default": "",
+       "maxlen": 255
+      },
+      {
+       "key": "period_s",
+       "type": "int",
+       "min": 1,
+       "max": 86400,
+       "default": 5
+      },
+      {
+       "key": "auth",
+       "type": "string",
+       "default": "none",
+       "enum": [
+        "none",
+        "bearer",
+        "api_key_header",
+        "api_key_query",
+        "basic"
+       ]
+      },
+      {
+       "key": "auth_token",
+       "type": "string",
+       "default": "",
+       "maxlen": 255
+      },
+      {
+       "key": "auth_name",
+       "type": "string",
+       "default": "",
+       "maxlen": 63
+      },
+      {
+       "key": "basic_username",
+       "type": "string",
+       "default": "",
+       "maxlen": 63
+      },
+      {
+       "key": "basic_password",
+       "type": "string",
+       "default": "",
+       "maxlen": 63
+      },
+      {
+       "key": "api_key",
+       "type": "string",
+       "default": "",
+       "maxlen": 255
+      },
+      {
+       "key": "query",
+       "type": "string",
+       "default": "",
+       "maxlen": 255
+      },
+      {
+       "key": "cert_set",
+       "type": "string",
+       "default": "",
+       "maxlen": 24
+      },
+      {
+       "key": "car_model",
+       "type": "string",
+       "default": "",
+       "maxlen": 63
+      },
+      {
+       "key": "retain",
+       "type": "bool",
+       "default": true
+      },
+      {
+       "key": "full_first",
+       "type": "bool",
+       "default": true
+      }
+     ],
+     "default": []
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "data_logger": {
+   "version": 2,
+   "source": "components/data_logger/data_logger_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "format",
+     "type": "string",
+     "default": "sqlite",
+     "enum": [
+      "sqlite",
+      "csv",
+      "binary",
+      "jsonl"
+     ]
+    },
+    {
+     "key": "max_file_mb",
+     "type": "int",
+     "min": 1,
+     "max": 32,
+     "default": 4
+    },
+    {
+     "key": "max_files",
+     "type": "int",
+     "min": 1,
+     "max": 500,
+     "default": 100
+    },
+    {
+     "key": "batch_rows",
+     "type": "int",
+     "min": 16,
+     "max": 1024,
+     "default": 256
+    },
+    {
+     "key": "flush_ms",
+     "type": "int",
+     "min": 100,
+     "max": 60000,
+     "default": 5000
+    },
+    {
+     "key": "autopid_log",
+     "type": "string",
+     "default": "off",
+     "enum": [
+      "off",
+      "changed",
+      "all"
+     ]
+    },
+    {
+     "key": "can_log",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "can_format",
+     "type": "string",
+     "default": "binary",
+     "enum": [
+      "binary",
+      "csv",
+      "sqlite",
+      "mf4",
+      "blf",
+      "candump",
+      "asc",
+      "jsonl"
+     ]
+    },
+    {
+     "key": "can_filter",
+     "type": "string",
+     "default": "",
+     "maxlen": 10
+    },
+    {
+     "key": "can_mask",
+     "type": "string",
+     "default": "7FF",
+     "maxlen": 10
+    },
+    {
+     "key": "can_ext",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "can_max_file_mb",
+     "type": "int",
+     "min": 1,
+     "max": 128,
+     "default": 8
+    },
+    {
+     "key": "can_max_files",
+     "type": "int",
+     "min": 1,
+     "max": 500,
+     "default": 50
+    },
+    {
+     "key": "ring_len",
+     "type": "int",
+     "min": 512,
+     "max": 8192,
+     "default": 2048
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "dev_status_manager": {
+   "version": 1,
+   "source": "components/dev_status_manager/dev_status_manager_settings.c",
+   "fields": [
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "espnetlink": {
+   "version": 2,
+   "source": "components/espnetlink_link/espnetlink_link_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "mode",
+     "type": "string",
+     "default": "wifi_modem",
+     "enum": [
+      "wifi_modem",
+      "usb_ncm",
+      "usb_rndis"
+     ]
+    },
+    {
+     "key": "auto_pair",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "device_id",
+     "type": "string",
+     "default": "",
+     "maxlen": 12
+    },
+    {
+     "key": "host",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "gps_poll_s",
+     "type": "int",
+     "min": 1,
+     "max": 60,
+     "default": 2
+    },
+    {
+     "key": "health_poll_s",
+     "type": "int",
+     "min": 5,
+     "max": 300,
+     "default": 10
+    },
+    {
+     "key": "cut_retries",
+     "type": "int",
+     "min": 1,
+     "max": 5,
+     "default": 2
+    },
+    {
+     "key": "apn",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "apn_user",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "apn_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "event_manager": {
+   "version": 1,
+   "source": "components/event_manager/event_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "timers",
+     "type": "array",
+     "max_items": 4,
+     "items": [
+      {
+       "key": "name",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "period_s",
+       "type": "int",
+       "required": true,
+       "min": 1,
+       "max": 604800,
+       "default": 60
+      }
+     ],
+     "default": []
+    },
+    {
+     "key": "rules",
+     "type": "array",
+     "max_items": 16,
+     "items": null,
+     "default": [
+      {
+       "name": "bump_event",
+       "on": "imu.bump",
+       "do": "mqtt.publish",
+       "with": {
+        "topic": "~/events",
+        "payload": "{\"event\":\"bump\",\"axes\":${axes},\"ts\":\"${time.iso}\"}"
+       }
+      },
+      {
+       "name": "motion_event",
+       "on": "imu.motion",
+       "do": "mqtt.publish",
+       "with": {
+        "topic": "~/events",
+        "payload": "{\"event\":\"motion_${state}\",\"ts\":\"${time.iso}\"}"
+       }
+      },
+      {
+       "name": "battery_event",
+       "on": "battery.threshold",
+       "do": "mqtt.publish",
+       "with": {
+        "topic": "~/events",
+        "payload": "{\"event\":\"battery_${edge}\",\"voltage\":${volts},\"ts\":\"${time.iso}\"}"
+       }
+      }
+     ]
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "external_storage": {
+   "version": 1,
+   "source": "components/external_storage/external_storage_settings.c",
+   "fields": [
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "filesystem": {
+   "version": 1,
+   "source": "components/filesystem/filesystem_settings.c",
+   "fields": [
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "ha_webhooks": {
+   "version": 2,
+   "source": "components/ha_webhooks/ha_webhooks_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "url",
+     "type": "string",
+     "default": "",
+     "maxlen": 191
+    },
+    {
+     "key": "url2",
+     "type": "string",
+     "default": "",
+     "maxlen": 191
+    },
+    {
+     "key": "interval_s",
+     "type": "int",
+     "min": 1,
+     "max": 3600,
+     "default": 60
+    },
+    {
+     "key": "data_mode",
+     "type": "string",
+     "default": "changed",
+     "enum": [
+      "changed",
+      "full"
+     ]
+    },
+    {
+     "key": "gzip",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "manual_override",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "cert_set",
+     "type": "string",
+     "default": "",
+     "maxlen": 31
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "http_server_manager": {
+   "version": 1,
+   "source": "components/http_server_manager/http_server_manager_settings.c",
+   "fields": [
+    {
+     "key": "auth_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "auth_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "imu_manager": {
+   "version": 3,
+   "source": "components/imu_manager/imu_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "smd",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "wom",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "smd_sensitivity",
+     "type": "int",
+     "min": 0,
+     "max": 4,
+     "default": 0
+    },
+    {
+     "key": "wom_threshold",
+     "type": "int",
+     "min": 1,
+     "max": 255,
+     "default": 32
+    },
+    {
+     "key": "stationary_s",
+     "type": "int",
+     "min": 1,
+     "max": 3600,
+     "default": 3
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "interface_manager": {
+   "version": 1,
+   "source": "components/interface_manager/interface_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sta_ble_handover",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "ap_ble_exclusive",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "iperf_manager": {
+   "version": 1,
+   "source": "components/iperf_manager/iperf_manager_settings.c",
+   "fields": [
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "j1939": {
+   "version": 1,
+   "source": "components/j1939/j1939_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "mode",
+     "type": "string",
+     "default": "listen",
+     "enum": [
+      "listen",
+      "active"
+     ]
+    },
+    {
+     "key": "address",
+     "type": "int",
+     "min": 128,
+     "max": 253,
+     "default": 249
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "j2534_server": {
+   "version": 1,
+   "source": "components/j2534_server/j2534_server_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "port",
+     "type": "int",
+     "min": 1,
+     "max": 65535,
+     "default": 6809
+    },
+    {
+     "key": "allow_reflash",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "allow_lan",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "exclusive",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "led_manager": {
+   "version": 1,
+   "source": "components/led_manager/led_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "idle_mode",
+     "type": "string",
+     "default": "solid",
+     "enum": [
+      "off",
+      "solid",
+      "blink_slow"
+     ]
+    },
+    {
+     "key": "idle_r",
+     "type": "int",
+     "min": 0,
+     "max": 255,
+     "default": 0
+    },
+    {
+     "key": "idle_g",
+     "type": "int",
+     "min": 0,
+     "max": 255,
+     "default": 204
+    },
+    {
+     "key": "idle_b",
+     "type": "int",
+     "min": 0,
+     "max": 255,
+     "default": 255
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "log_manager": {
+   "version": 1,
+   "source": "components/log_manager/log_manager_settings.c",
+   "fields": [
+    {
+     "key": "level",
+     "type": "string",
+     "default": "info",
+     "enum": [
+      "none",
+      "error",
+      "warn",
+      "info",
+      "debug",
+      "verbose"
+     ]
+    },
+    {
+     "key": "console_enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "ring_enabled",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "log_sinks": {
+   "version": 1,
+   "source": "components/log_sinks/log_sinks_settings.c",
+   "fields": [
+    {
+     "key": "tcp_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "tcp_port",
+     "type": "int",
+     "min": 1,
+     "max": 65535,
+     "default": 5515
+    },
+    {
+     "key": "udp_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "udp_host",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "udp_port",
+     "type": "int",
+     "min": 1,
+     "max": 65535,
+     "default": 5514
+    },
+    {
+     "key": "ws_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "file_enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "file_max_kb",
+     "type": "int",
+     "min": 64,
+     "max": 4096,
+     "default": 512
+    },
+    {
+     "key": "file_keep",
+     "type": "int",
+     "min": 1,
+     "max": 16,
+     "default": 4
+    },
+    {
+     "key": "file_flush_s",
+     "type": "int",
+     "min": 5,
+     "max": 3600,
+     "default": 60
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "mdns_manager": {
+   "version": 1,
+   "source": "components/mdns_manager/mdns_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "mqtt_can": {
+   "version": 1,
+   "source": "components/mqtt_can/mqtt_can.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "pub_topic",
+     "type": "string",
+     "default": "~/can/rx",
+     "maxlen": 96
+    },
+    {
+     "key": "sub_topic",
+     "type": "string",
+     "default": "~/can/tx",
+     "maxlen": 96
+    },
+    {
+     "key": "qos",
+     "type": "int",
+     "min": 0,
+     "max": 1,
+     "default": 0
+    },
+    {
+     "key": "allow_rx",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "allow_tx",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "batch_ms",
+     "type": "int",
+     "min": 10,
+     "max": 1000,
+     "default": 50
+    },
+    {
+     "key": "batch_frames",
+     "type": "int",
+     "min": 1,
+     "max": 24,
+     "default": 24
+    },
+    {
+     "key": "filter",
+     "type": "string",
+     "default": "",
+     "maxlen": 8
+    },
+    {
+     "key": "mask",
+     "type": "string",
+     "default": "",
+     "maxlen": 8
+    },
+    {
+     "key": "filter_ext",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "mqtt_manager": {
+   "version": 2,
+   "source": "components/mqtt_manager/mqtt_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "url",
+     "type": "string",
+     "default": "",
+     "maxlen": 127
+    },
+    {
+     "key": "username",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "broker_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "client_id",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "topic_prefix",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "ca_file",
+     "type": "string",
+     "default": "",
+     "maxlen": 127
+    },
+    {
+     "key": "cert_set",
+     "type": "string",
+     "default": "",
+     "maxlen": 24
+    },
+    {
+     "key": "keepalive_s",
+     "type": "int",
+     "min": 5,
+     "max": 600,
+     "default": 30
+    },
+    {
+     "key": "connect_on",
+     "type": "string",
+     "default": "wifi",
+     "enum": [
+      "wifi",
+      "any"
+     ]
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": true
+  },
+  "obd_chip": {
+   "version": 3,
+   "source": "components/obd_chip/obd_chip_settings.c",
+   "fields": [
+    {
+     "key": "auto_sleep",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "auto_update",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "monitor_policy",
+     "type": "string",
+     "default": "manual",
+     "enum": [
+      "manual",
+      "auto_interrupt"
+     ]
+    },
+    {
+     "key": "wake_voltage_mv",
+     "type": "int",
+     "min": 12000,
+     "max": 15000,
+     "default": 13500
+    },
+    {
+     "key": "sleep_voltage_mv",
+     "type": "int",
+     "min": 12000,
+     "max": 14000,
+     "default": 13200
+    },
+    {
+     "key": "sleep_time_min",
+     "type": "int",
+     "min": 1,
+     "max": 60,
+     "default": 2
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": true
+  },
+  "obd_gate": {
+   "version": 1,
+   "source": "components/obd_gate/obd_gate_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "restart_tracker": {
+   "version": 1,
+   "source": "components/restart_tracker/restart_tracker_settings.c",
+   "fields": [
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "rtc_manager": {
+   "version": 1,
+   "source": "components/rtc_manager/rtc_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sntp",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "ntp_server",
+     "type": "string",
+     "default": "pool.ntp.org",
+     "maxlen": 63
+    },
+    {
+     "key": "ntp_server2",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "sync_interval_h",
+     "type": "int",
+     "min": 1,
+     "max": 168,
+     "default": 24
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "script_engine": {
+   "version": 2,
+   "source": "components/script_engine/script_engine_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "max_runtime_ms",
+     "type": "int",
+     "min": 100,
+     "max": 120000,
+     "default": 10000
+    },
+    {
+     "key": "allow_reflash",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "exclusive",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "sleep_manager": {
+   "version": 4,
+   "source": "components/sleep_manager/sleep_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sleep_mv",
+     "type": "int",
+     "min": 12000,
+     "max": 14000,
+     "default": 13100
+    },
+    {
+     "key": "wake_mv",
+     "type": "int",
+     "min": 12100,
+     "max": 15000,
+     "default": 13200
+    },
+    {
+     "key": "wake_delay_ms",
+     "type": "int",
+     "min": 100,
+     "max": 5000,
+     "default": 500
+    },
+    {
+     "key": "sleep_delay_min",
+     "type": "int",
+     "min": 1,
+     "max": 30,
+     "default": 5
+    },
+    {
+     "key": "periodic_wakeup",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "wakeup_interval_min",
+     "type": "int",
+     "min": 5,
+     "max": 1440,
+     "default": 30
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "motion_wake",
+     "type": "bool",
+     "default": true,
+     "fork_only": true
+    },
+    {
+     "key": "motion_mg",
+     "type": "int",
+     "min": 30,
+     "max": 2000,
+     "default": 125,
+     "fork_only": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "socket_manager": {
+   "version": 1,
+   "source": "components/socket_manager/socket_manager_settings.c",
+   "fields": [
+    {
+     "key": "servers",
+     "type": "array",
+     "max_items": 4,
+     "items": [
+      {
+       "key": "name",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "proto",
+       "type": "string",
+       "required": true,
+       "default": "tcp",
+       "enum": [
+        "tcp",
+        "udp"
+       ]
+      },
+      {
+       "key": "port",
+       "type": "int",
+       "required": true,
+       "min": 1,
+       "max": 65535,
+       "default": 3333
+      },
+      {
+       "key": "max_clients",
+       "type": "int",
+       "min": 1,
+       "max": 4,
+       "default": 2
+      },
+      {
+       "key": "keepalive_s",
+       "type": "int",
+       "min": 0,
+       "max": 600,
+       "default": 30
+      },
+      {
+       "key": "enabled",
+       "type": "bool",
+       "default": false
+      }
+     ],
+     "default": [
+      {
+       "name": "obd0",
+       "proto": "tcp",
+       "port": 35000,
+       "enabled": true
+      },
+      {
+       "name": "slcan0",
+       "proto": "tcp",
+       "port": 3333,
+       "enabled": false
+      },
+      {
+       "name": "gvret0",
+       "proto": "tcp",
+       "port": 23,
+       "enabled": false
+      },
+      {
+       "name": "udp0",
+       "proto": "udp",
+       "port": 17,
+       "enabled": false
+      }
+     ]
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": false
+  },
+  "uds_manager": {
+   "version": 2,
+   "source": "components/uds_manager/uds_manager_settings.c",
+   "fields": [
+    {
+     "key": "backend",
+     "type": "string",
+     "default": "auto",
+     "enum": [
+      "auto",
+      "obd_chip",
+      "isotp"
+     ]
+    },
+    {
+     "key": "p2_ms",
+     "type": "int",
+     "min": 50,
+     "max": 5000,
+     "default": 250
+    },
+    {
+     "key": "p2star_ms",
+     "type": "int",
+     "min": 500,
+     "max": 30000,
+     "default": 5000
+    },
+    {
+     "key": "tester_present_ms",
+     "type": "int",
+     "min": 500,
+     "max": 10000,
+     "default": 2000
+    },
+    {
+     "key": "exclusive",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "usb_acm_cli": {
+   "version": 2,
+   "source": "components/usb_acm_cli/usb_acm_cli_settings.c",
+   "fields": [
+    {
+     "key": "gps",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "console",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": true
+  },
+  "usb_host_manager": {
+   "version": 1,
+   "source": "components/usb_host_manager/usb_host_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "role",
+     "type": "string",
+     "default": "host",
+     "enum": [
+      "host",
+      "device"
+     ]
+    },
+    {
+     "key": "device_class",
+     "type": "string",
+     "default": "ncm",
+     "enum": [
+      "ncm",
+      "rndis",
+      "cdc"
+     ]
+    },
+    {
+     "key": "ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "prefer_usb_route",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "vpn_manager": {
+   "version": 2,
+   "source": "components/vpn_manager/vpn_manager_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "type",
+     "type": "string",
+     "default": "wireguard",
+     "enum": [
+      "wireguard",
+      "tailscale"
+     ]
+    },
+    {
+     "key": "ts_auth_key",
+     "type": "string",
+     "default": "",
+     "maxlen": 95
+    },
+    {
+     "key": "ts_device_name",
+     "type": "string",
+     "default": "",
+     "maxlen": 47
+    },
+    {
+     "key": "ts_control_url",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "private_key",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "peer_public_key",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "preshared_key",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "address",
+     "type": "string",
+     "default": "",
+     "maxlen": 31
+    },
+    {
+     "key": "routes",
+     "type": "string",
+     "default": "",
+     "maxlen": 255
+    },
+    {
+     "key": "endpoint",
+     "type": "string",
+     "default": "",
+     "maxlen": 63
+    },
+    {
+     "key": "port",
+     "type": "int",
+     "min": 1,
+     "max": 65535,
+     "default": 51820
+    },
+    {
+     "key": "keepalive_s",
+     "type": "int",
+     "min": 0,
+     "max": 3600,
+     "default": 25
+    },
+    {
+     "key": "default_route",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "dns",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": true
+  },
+  "websocket_manager": {
+   "version": 2,
+   "source": "components/websocket_manager/websocket_manager_settings.c",
+   "fields": [
+    {
+     "key": "channels",
+     "type": "array",
+     "max_items": 6,
+     "items": [
+      {
+       "key": "name",
+       "type": "string",
+       "required": true,
+       "default": "",
+       "maxlen": 15,
+       "minlen": 1
+      },
+      {
+       "key": "path",
+       "type": "string",
+       "required": true,
+       "default": "/ws/",
+       "maxlen": 31,
+       "minlen": 5
+      },
+      {
+       "key": "max_clients",
+       "type": "int",
+       "min": 1,
+       "max": 4,
+       "default": 2
+      },
+      {
+       "key": "mode",
+       "type": "string",
+       "default": "binary",
+       "enum": [
+        "binary",
+        "text"
+       ]
+      },
+      {
+       "key": "enabled",
+       "type": "bool",
+       "default": false
+      }
+     ],
+     "default": [
+      {
+       "name": "ws_obd",
+       "path": "/ws/obd",
+       "mode": "binary",
+       "enabled": true
+      },
+      {
+       "name": "ws_can",
+       "path": "/ws/can",
+       "mode": "binary",
+       "enabled": false
+      },
+      {
+       "name": "ws_cli",
+       "path": "/ws/cli",
+       "mode": "text",
+       "enabled": false
+      },
+      {
+       "name": "ws_log",
+       "path": "/ws/log",
+       "mode": "text",
+       "enabled": true
+      }
+     ]
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": true
+  },
+  "wifi_manager": {
+   "version": 7,
+   "source": "components/wifi_manager/wifi_manager_settings.c",
+   "fields": [
+    {
+     "key": "mode",
+     "type": "string",
+     "default": "apsta",
+     "enum": [
+      "off",
+      "sta",
+      "ap",
+      "apsta"
+     ]
+    },
+    {
+     "key": "sta_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "sta_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "sta_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sta_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "hostname",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "sta_auto_reconnect",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "sta_max_retry",
+     "type": "int",
+     "min": -1,
+     "max": 1000,
+     "default": -1
+    },
+    {
+     "key": "sta_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "sta_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "sta_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "sta_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "sta_dns",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback1_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "fallback1_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback1_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback1_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback2_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "fallback2_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback2_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback2_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback3_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "fallback3_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback3_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback3_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback4_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "fallback4_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback4_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback4_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback5_ip_mode",
+     "type": "string",
+     "default": "dhcp",
+     "enum": [
+      "dhcp",
+      "static"
+     ]
+    },
+    {
+     "key": "fallback5_static_ip",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback5_static_netmask",
+     "type": "string",
+     "default": "255.255.255.0",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback5_static_gw",
+     "type": "string",
+     "default": "",
+     "maxlen": 15
+    },
+    {
+     "key": "fallback1_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "fallback1_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "fallback1_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "fallback1_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "fallback2_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "fallback2_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "fallback2_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "fallback2_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "fallback3_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "fallback3_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "fallback3_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "fallback3_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "fallback4_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "fallback4_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "fallback4_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "fallback4_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "fallback5_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "fallback5_password",
+     "type": "string",
+     "default": "",
+     "maxlen": 64
+    },
+    {
+     "key": "fallback5_trusted",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "fallback5_vpn_pause",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "ap_ssid",
+     "type": "string",
+     "default": "",
+     "maxlen": 32
+    },
+    {
+     "key": "ap_password",
+     "type": "string",
+     "default": "@meatpi#",
+     "maxlen": 64,
+     "minlen": 8
+    },
+    {
+     "key": "ap_channel",
+     "type": "int",
+     "min": 1,
+     "max": 13,
+     "default": 6
+    },
+    {
+     "key": "ap_max_connections",
+     "type": "int",
+     "min": 1,
+     "max": 10,
+     "default": 4
+    },
+    {
+     "key": "ap_auto_disable",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "ap_ip",
+     "type": "string",
+     "default": "192.168.0.10",
+     "maxlen": 15
+    },
+    {
+     "key": "ap_hidden",
+     "type": "bool",
+     "default": false
+    },
+    {
+     "key": "ap_bandwidth",
+     "type": "string",
+     "default": "ht20",
+     "enum": [
+      "ht20",
+      "ht40"
+     ]
+    },
+    {
+     "key": "ap_auth",
+     "type": "string",
+     "default": "auto",
+     "enum": [
+      "auto",
+      "wpa2",
+      "wpa2wpa3",
+      "wpa3"
+     ]
+    },
+    {
+     "key": "power_save",
+     "type": "string",
+     "default": "none",
+     "enum": [
+      "none",
+      "min",
+      "max"
+     ]
+    },
+    {
+     "key": "sta_roam_interval_s",
+     "type": "int",
+     "min": 0,
+     "max": 86400,
+     "default": 300
+    },
+    {
+     "key": "wifi_ram_profile",
+     "type": "string",
+     "default": "lean",
+     "enum": [
+      "full",
+      "lean",
+      "custom"
+     ]
+    },
+    {
+     "key": "wifi_static_rx",
+     "type": "int",
+     "min": 2,
+     "max": 25,
+     "default": 10
+    },
+    {
+     "key": "wifi_static_tx",
+     "type": "int",
+     "min": 1,
+     "max": 64,
+     "default": 8
+    },
+    {
+     "key": "wifi_cache_tx",
+     "type": "int",
+     "min": 0,
+     "max": 128,
+     "default": 32
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": true,
+   "has_on_migrate": true
+  }
+ }
+}
