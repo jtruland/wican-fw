@@ -1,7 +1,7 @@
 {
  "generated_by": "extract_schema.py",
- "upstream": "meatpi-components@e786dd5 (upstream alfa-04)",
- "fork": "meatpi-components@bitz/v6-alfa04 (sleep_manager only)",
+ "upstream": "meatpi-components@c51c3e2 (upstream v6.0.0p-beta.2)",
+ "fork": "meatpi-components@9101d03 (bitz/v6-beta2)",
  "warnings": [],
  "components": {
   "autopid": {
@@ -813,7 +813,7 @@
     {
      "key": "mode",
      "type": "string",
-     "default": "wifi_modem",
+     "default": "usb_rndis",
      "enum": [
       "wifi_modem",
       "usb_ncm",
@@ -881,6 +881,12 @@
      "type": "string",
      "default": "",
      "maxlen": 32
+    },
+    {
+     "key": "sim_pin",
+     "type": "string",
+     "default": "",
+     "maxlen": 8
     },
     {
      "key": "cli",
@@ -987,6 +993,54 @@
     }
    ],
    "has_on_validate": false,
+   "has_on_migrate": false
+  },
+  "fw_update": {
+   "version": 1,
+   "source": "components/fw_update/fw_update_settings.c",
+   "fields": [
+    {
+     "key": "enabled",
+     "type": "bool",
+     "default": true
+    },
+    {
+     "key": "channel",
+     "type": "string",
+     "default": "stable",
+     "enum": [
+      "stable",
+      "beta",
+      "alfa"
+     ]
+    },
+    {
+     "key": "check_interval_h",
+     "type": "int",
+     "min": 1,
+     "max": 168,
+     "default": 24
+    },
+    {
+     "key": "base_url",
+     "type": "string",
+     "default": "https://raw.githubusercontent.com/meatpiHQ/meatpi-devices/main/",
+     "maxlen": 128,
+     "minlen": 8
+    },
+    {
+     "key": "cert_set",
+     "type": "string",
+     "default": "",
+     "maxlen": 24
+    },
+    {
+     "key": "cli",
+     "type": "bool",
+     "default": true
+    }
+   ],
+   "has_on_validate": true,
    "has_on_migrate": false
   },
   "ha_webhooks": {

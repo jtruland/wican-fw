@@ -6,6 +6,7 @@ accepts.
     python3 -I convert.py <capture_dir> -o v6-backup.json
             [--device-id ID] [--wg-route 10.200.0.0/24]
             [--target bitz|upstream] [--ap-password PW] [--vpn-off]
+            [--fw-update-check]
             [--schema v6_schema.json] [--report report.txt]
 
 <capture_dir> holds the raw JSON responses of the v4 device (any may be
@@ -190,6 +191,7 @@ class Converter:
         self.map_ports()
         self.map_unmapped_v4_keys()
         self.map_autopid_tables(cap)
+        self.map_fw_update()
         self.cross_field()
         return self.out
 
@@ -823,6 +825,28 @@ class Converter:
             self.r.drop("cert_manager_sets", "certificate contents are not "
                         "exported by v4 /cert_manager/sets; re-upload on v6")
 
+    def map_fw_update(self):
+        """bitz: the scheduled stock-update check off (fw_update.enabled).
+
+        Not from v4 (it had no updater): a fork build must not nag toward
+        stock releases. Manual check/install still work (fw_update README),
+        so this only silences the schedule and the HA keys."""
+        if self.args.target != "bitz":
+            return
+        if self.args.fw_update_check:
+            self.r.note("fw_update not emitted (--fw-update-check): the "
+                        "scheduled stock-release check stays at the "
+                        "device's setting (default on).")
+            return
+        if self.field("fw_update", "enabled") is None:
+            self.r.drop("--target bitz", "target firmware has no "
+                        "fw_update.enabled")
+            return
+        if self.put("--target bitz", "fw_update", "enabled", False):
+            self.r.note("fw_update.enabled = false (--target bitz): no "
+                        "scheduled check against stock releases; manual "
+                        "check/install still work. --fw-update-check to keep it.")
+
     # ---- cross-field rules v6 on_validate enforces ---------------------------
     def cross_field(self):
         w = self.out.get("wifi_manager")
@@ -955,6 +979,9 @@ def main(argv=None):
                          "deriving it from v4 imu_threshold x 3.9")
     ap.add_argument("--vpn-off", action="store_true",
                     help="emit the tunnel disabled whatever v4 had")
+    ap.add_argument("--fw-update-check", action="store_true",
+                    help="bitz: do not turn off fw_update's scheduled check "
+                         "for stock releases (default: emitted disabled)")
     ap.add_argument("--schema", default=os.path.join(HERE, "v6_schema.json"))
     ap.add_argument("--report", help="also write the report to this file")
     args = ap.parse_args(argv)
