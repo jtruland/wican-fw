@@ -13,7 +13,9 @@ v6 has no importer of its own: a v4 → v6 OTA starts from defaults.
    passwords in clear: keep the capture out of git.
 2. **Convert:** `python3 -I convert.py <capture_dir> -o v6-backup.json --report`
    - `--target bitz` (default) also emits `sleep_manager.motion_wake/motion_mg`, which only
-     exist on the bitz firmware; `--target upstream` for stock v6.
+     exist on the bitz firmware, and `fw_update.enabled = false` (no scheduled check against
+     stock releases; a manual check/install still works). `--fw-update-check` leaves
+     `fw_update` out instead. `--target upstream` for stock v6.
    - `--wg-route` (default `10.200.0.0/24`): v6 routes nothing through WireGuard that is not
      listed, so the tunnel's own subnet must be given. `--vpn-off` to skip the tunnel.
    - `--ap-password`: v6 refuses the factory `@meatpi#`.
@@ -32,7 +34,9 @@ AutoPID PID tables are **not** converted (settings only).
 ## Files
 
 - `extract_schema.py` → `v6_schema.json`: every component's settings schema, parsed from
-  the v6 C source (`FIELDS[]` tables + descriptor versions). Re-run after an upstream bump.
+  the v6 C source (`FIELDS[]` tables + descriptor versions; string arguments may be
+  `#define`s, e.g. `FWU_DEFAULT_BASE_URL`). Re-run after an upstream bump. Current file:
+  upstream `c51c3e2` (v6.0.0p-beta.2) + fork `bitz/v6-beta2`.
 - `convert.py`: the converter; `--report` prints mapped / dropped / left-at-default.
 - `validate.py`: synthetic captures (from v4's `device_config_default`) → convert → an
   emulated restore (defaults fill, schema, cross-field rules, blank-secret rule).
@@ -46,8 +50,12 @@ AutoPID PID tables are **not** converted (settings only).
 cd tools/bitz/v4tov6
 mkdir -p src/v4 src/v6 src/v6fork third_party
 git -C ../../.. archive feature/motion-wake main components | tar -x -C src/v4
-git -C <meatpi-components clone> archive e786dd5 components | tar -x -C src/v6
-git -C <meatpi-components clone> archive bitz/v6-alfa04 components | tar -x -C src/v6fork
+git -C <meatpi-components clone> archive c51c3e2 components | tar -x -C src/v6
+git -C <meatpi-components clone> archive bitz/v6-beta2 components | tar -x -C src/v6fork
 git clone -q --depth 1 -b v1.7.18 https://github.com/DaveGamble/cJSON third_party/cjson
-python3 -I extract_schema.py && python3 -I validate.py && python3 -I host/host_validate.py --fork
+python3 -I extract_schema.py src/v6 --fork src/v6fork \
+    --label 'meatpi-components@c51c3e2 (upstream v6.0.0p-beta.2)' \
+    --fork-label 'meatpi-components@<sha> (bitz/v6-beta2)' -o v6_schema.json
+python3 -I validate.py --keep out
+python3 -I host/host_validate.py --fork out/v6-backup-*.json
 ```

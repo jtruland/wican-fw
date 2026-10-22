@@ -13,7 +13,7 @@ settings_descriptor_t initialiser (.name, .version, .fields, .defaults_json).
 marked "fork_only": true, and records the fork's descriptor version.
 
 A source export is easiest made with:
-    git -C <meatpi> archive --prefix=v6/ e786dd5 | tar x
+    git -C <meatpi> archive --prefix=v6/ c51c3e2 | tar x
 """
 import argparse
 import json
@@ -170,6 +170,42 @@ class Defines:
             raise ValueError("cannot evaluate %r" % expr)
         return int(eval(e.replace("/", "//"), {"__builtins__": {}}))
 
+    def eval_str(self, comp, expr, depth=0):
+        """A string row argument: literal(s), NULL, or a #define naming one
+        (fw_update's FWU_DEFAULT_BASE_URL), possibly mixed with literals."""
+        if depth > 20:
+            raise ValueError("define recursion: %s" % expr)
+        e = expr.strip()
+        if e == "NULL":
+            return None
+        parts = []
+        i, n = 0, len(e)
+        while i < n:
+            c = e[i]
+            if c.isspace():
+                i += 1
+            elif c == '"':
+                j = i + 1
+                while j < n and e[j] != '"':
+                    j += 2 if e[j] == "\\" else 1
+                parts.append(c_string(e[i:j + 1]))
+                i = j + 1
+            else:
+                m = re.match(r"[A-Za-z_]\w*", e[i:])
+                if not m:
+                    raise ValueError("cannot evaluate string %r" % expr)
+                v = self.lookup(comp, m.group(0))
+                if v is None:
+                    raise ValueError("unresolved identifier %s in %r" % (m.group(0), expr))
+                s = self.eval_str(comp, v, depth + 1)
+                if s is None:
+                    raise ValueError("%s is NULL inside %r" % (m.group(0), expr))
+                parts.append(s)
+                i += m.end()
+        if not parts:
+            raise ValueError("not a string expression: %r" % expr)
+        return "".join(parts)
+
 
 def parse_row(comp, defs, macro, argtext, tables):
     typ, names = ROW_MACROS[macro]
@@ -177,19 +213,20 @@ def parse_row(comp, defs, macro, argtext, tables):
     if len(args) != len(names):
         raise ValueError("%s: %d args, want %d: %r" % (macro, len(args), len(names), argtext))
     a = dict(zip(names, args))
-    f = {"key": c_string(a["key"]), "type": typ}
+    f = {"key": defs.eval_str(comp, a["key"]), "type": typ}
     if macro.endswith("_REQ"):
         f["required"] = True
     if macro == "SETTINGS_STR_FILE":
         f["format"] = "file"
     if typ == "string":
-        f["default"] = c_string(a["default"]) or ""
+        # defaults may be a macro (fw_update: FWU_DEFAULT_BASE_URL)
+        f["default"] = defs.eval_str(comp, a["default"]) or ""
         if "maxlen" in a:
             f["maxlen"] = defs.eval_int(comp, a["maxlen"])
         if "minlen" in a:
             f["minlen"] = defs.eval_int(comp, a["minlen"])
         if "enum" in a:
-            f["enum"] = c_string(a["enum"]).split(",")
+            f["enum"] = defs.eval_str(comp, a["enum"]).split(",")
     elif typ == "int":
         f["min"] = defs.eval_int(comp, a["min"])
         f["max"] = defs.eval_int(comp, a["max"])

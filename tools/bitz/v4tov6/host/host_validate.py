@@ -4,8 +4,8 @@
     python3 -I host/host_validate.py <backup.json> [...] [--fork]
 
 Builds host/build/harness from UNMODIFIED v6 sources (src/v6 = meatpi
-components @e786dd5; with --fork, sleep_manager from src/v6fork =
-bitz/v6-alfa04) plus three stub headers (esp_err/esp_log/esp_attr) and a
+components @c51c3e2 = beta.2; with --fork, sleep_manager from src/v6fork =
+bitz/v6-beta2) plus three stub headers (esp_err/esp_log/esp_attr) and a
 FreeRTOS type stub. For every component the harness needs, a wrapper TU
 #includes that component's *_settings.c and calls its own register
 function, so the descriptor (FIELDS, version, on_validate, on_migrate) is
@@ -42,6 +42,7 @@ COMPONENTS = {
     "ble_manager": ("ble_manager/ble_manager_settings.c", "blm_settings_register"),
     "ha_webhooks": ("ha_webhooks/ha_webhooks_settings.c", "hw_settings_register"),
     "autopid": ("autopid/autopid_settings.c", "ap_settings_register"),
+    "fw_update": ("fw_update/fw_update_settings.c", "fwu_settings_register"),
 }
 # pure helpers the on_validate hooks call
 HELPERS = [
@@ -51,6 +52,7 @@ HELPERS = [
     "settings_manager/settings_manager_schema.c",
     "settings_manager/settings_manager_fields.c",
     "config_backup/config_backup_core.c", "config_backup/config_backup_codec.c",
+    "fw_update/fw_update_version.c",
 ]
 
 SYN_KEY = "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8="  # synthetic WG key (base64 of bytes 0x20..0x3f) secret-scan:allow
