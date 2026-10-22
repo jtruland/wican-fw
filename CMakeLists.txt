@@ -12,6 +12,30 @@ if(DEFINED ENV{MEATPI_COMPONENTS_PATH})
                             "${MEATPI_COMPONENTS_PATH}")
     endif()
 else()
+    # bitz fork: our components fork, on the branch carrying the ports,
+    # PINNED to one commit so a later push to the branch cannot silently
+    # change what this tree builds. Bump the pin together with the branch.
+    # Overrides: MEATPI_COMPONENTS_GIT_URL, MEATPI_COMPONENTS_GIT_REF
+    # (a different ref drops the pin unless a SHA is also given), and
+    # MEATPI_COMPONENTS_GIT_SHA (`none` = build the ref's tip, unpinned).
+    set(_meatpi_url "https://github.com/jtruland/meatpi-components.git")
+    set(_meatpi_ref "bitz/v6-beta2")
+    set(_meatpi_pin "9101d033796936dd6dfe0a881cbac6c022c384fd")  # git commit SHA, not a secret: secret-scan:allow
+    if(DEFINED ENV{MEATPI_COMPONENTS_GIT_URL})
+        set(_meatpi_url "$ENV{MEATPI_COMPONENTS_GIT_URL}")
+    endif()
+    if(DEFINED ENV{MEATPI_COMPONENTS_GIT_REF})
+        set(_meatpi_ref "$ENV{MEATPI_COMPONENTS_GIT_REF}")
+        set(_meatpi_pin "")
+    endif()
+    if(DEFINED ENV{MEATPI_COMPONENTS_GIT_SHA})
+        set(_meatpi_pin "$ENV{MEATPI_COMPONENTS_GIT_SHA}")
+        if(_meatpi_pin STREQUAL "none")
+            set(_meatpi_pin "")
+        endif()
+    endif()
+    set(_meatpi_dest "${CMAKE_CURRENT_LIST_DIR}/components/meatpi")
+
     set(MEATPI_COMPONENTS_PATH "")
     foreach(_cand
             "${CMAKE_CURRENT_LIST_DIR}/components/meatpi/components"
@@ -27,30 +51,49 @@ else()
         # Not cloned yet: fetch it INTO this checkout (self-contained;
         # components/meatpi/ is gitignored) so the search finds it on
         # every future configure.
-        set(_meatpi_dest "${CMAKE_CURRENT_LIST_DIR}/components/meatpi")
-        # bitz fork: our components fork, on the branch carrying the ports
-        set(_meatpi_url "https://github.com/jtruland/meatpi-components.git")
-        set(_meatpi_ref "bitz/v6-alfa04")
-        if(DEFINED ENV{MEATPI_COMPONENTS_GIT_URL})
-            set(_meatpi_url "$ENV{MEATPI_COMPONENTS_GIT_URL}")
-        endif()
-        if(DEFINED ENV{MEATPI_COMPONENTS_GIT_REF})
-            set(_meatpi_ref "$ENV{MEATPI_COMPONENTS_GIT_REF}")
-        endif()
         message(STATUS "meatpi-components not found: cloning "
-                       "${_meatpi_url} into ${_meatpi_dest}")
+                       "${_meatpi_url}@${_meatpi_ref} into ${_meatpi_dest}")
         execute_process(
             COMMAND ${CMAKE_COMMAND} -E env GIT_TERMINAL_PROMPT=0
                     git clone -b "${_meatpi_ref}" "${_meatpi_url}" "${_meatpi_dest}"
             RESULT_VARIABLE _meatpi_clone_rc)
+        if(_meatpi_clone_rc EQUAL 0 AND _meatpi_pin)
+            execute_process(
+                COMMAND git -C "${_meatpi_dest}" checkout -q "${_meatpi_pin}"
+                RESULT_VARIABLE _meatpi_clone_rc)
+        endif()
         if(_meatpi_clone_rc EQUAL 0 AND EXISTS "${_meatpi_dest}/components")
             set(MEATPI_COMPONENTS_PATH "${_meatpi_dest}/components")
         else()
             message(FATAL_ERROR
-                "meatpi-components could not be cloned automatically: "
-                "clone github.com/meatpiHQ/meatpi-components to "
-                "components/meatpi in this checkout (or next to it), or "
-                "set MEATPI_COMPONENTS_PATH to its components/ directory")
+                "meatpi-components could not be cloned automatically "
+                "(${_meatpi_url}@${_meatpi_ref}, pin '${_meatpi_pin}'): "
+                "clone it to components/meatpi in this checkout (or next "
+                "to it), or set MEATPI_COMPONENTS_PATH to its components/ "
+                "directory")
+        endif()
+    endif()
+    # the self-contained clone must sit on the pin; a sibling checkout is a
+    # developer's working tree and is only warned about
+    if(_meatpi_pin)
+        get_filename_component(_meatpi_repo "${MEATPI_COMPONENTS_PATH}/.." ABSOLUTE)
+        execute_process(
+            COMMAND git -C "${_meatpi_repo}" rev-parse HEAD
+            OUTPUT_VARIABLE _meatpi_head
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        if(NOT _meatpi_head STREQUAL _meatpi_pin)
+            get_filename_component(_meatpi_dest_abs "${_meatpi_dest}" ABSOLUTE)
+            set(_meatpi_msg
+                "meatpi-components at ${_meatpi_repo} is at '${_meatpi_head}', "
+                "not the pinned ${_meatpi_pin}: git -C ${_meatpi_repo} fetch "
+                "&& git -C ${_meatpi_repo} checkout ${_meatpi_pin}, or set "
+                "MEATPI_COMPONENTS_GIT_SHA=none to build it unpinned")
+            if(_meatpi_repo STREQUAL _meatpi_dest_abs)
+                message(FATAL_ERROR "${_meatpi_msg}")
+            else()
+                message(WARNING "${_meatpi_msg}")
+            endif()
         endif()
     endif()
 endif()

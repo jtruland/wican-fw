@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Build the WiCAN PRO bitz fork firmware. Runs ON FORGE (CT 110).
 # v6 = wican-fw (jtruland fork) + meatpi-components (jtruland fork), both on
-# the SAME branch name: BITZ_BRANCH (default bitz/v6-alfa04; the superseded
-# alfa-03 port is bitz/v6).
+# the SAME branch name: BITZ_BRANCH (default bitz/v6-beta2; superseded ports
+# are bitz/v6-alfa04 and bitz/v6). The components commit is the PIN in the
+# top-level CMakeLists.txt (_meatpi_pin), never the branch tip.
 # ESP-IDF 6.0.2 is REQUIRED for v6 (v5.5.2 is only for the old v4.51 tree).
 set -euo pipefail
-BRANCH="${BITZ_BRANCH:-bitz/v6-alfa04}"
+BRANCH="${BITZ_BRANCH:-bitz/v6-beta2}"
 REPO=/opt/builds/wican-fw-v6
 LOG=/tmp/wican-v6-build.log
 exec >>"$LOG" 2>&1
@@ -24,8 +25,13 @@ if [[ ! -d components/meatpi/.git ]]; then
   git clone -q -b "$BRANCH" https://github.com/jtruland/meatpi-components.git components/meatpi
 fi
 git -C components/meatpi fetch -q origin "$BRANCH"
-git -C components/meatpi checkout -q -B "$BRANCH" origin/"$BRANCH"
-echo "=== describe: $(git describe --tags --always --dirty) / components $(git -C components/meatpi rev-parse --short HEAD 2>/dev/null || echo not-yet-cloned) ==="
+PIN=$(sed -n 's/^ *set(_meatpi_pin "\([0-9a-f]*\)").*/\1/p' CMakeLists.txt | head -1)
+if [[ -n $PIN ]]; then
+  git -C components/meatpi checkout -q "$PIN"   # CMake refuses any other commit
+else
+  git -C components/meatpi checkout -q -B "$BRANCH" origin/"$BRANCH"
+fi
+echo "=== describe: $(git describe --tags --always --dirty) / components $(git -C components/meatpi rev-parse --short HEAD 2>/dev/null || echo not-yet-cloned) (pin ${PIN:-none}) ==="
 RUN="git config --global --add safe.directory '*'"
 echo "=== STEP host-tests ==="
 for t in sleep_manager vpn_manager; do
