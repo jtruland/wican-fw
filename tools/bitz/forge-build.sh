@@ -7,8 +7,8 @@
 # ESP-IDF 6.0.2 is REQUIRED for v6 (v5.5.2 is only for the old v4.51 tree).
 set -euo pipefail
 BRANCH="${BITZ_BRANCH:-bitz/v6-beta2}"
-REPO=/opt/builds/wican-fw-v6
-LOG=/tmp/wican-v6-build.log
+REPO="${BITZ_REPO:-/opt/builds/wican-fw-v6}"   # a fresh dir per base keeps the old build/
+LOG="${BITZ_LOG:-/tmp/wican-v6-build.log}"
 exec >>"$LOG" 2>&1
 echo "=== $(date -Is) start ==="
 if [[ ! -d $REPO/.git ]]; then
