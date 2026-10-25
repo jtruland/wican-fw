@@ -19,8 +19,8 @@ else()
     # (a different ref drops the pin unless a SHA is also given), and
     # MEATPI_COMPONENTS_GIT_SHA (`none` = build the ref's tip, unpinned).
     set(_meatpi_url "https://github.com/jtruland/meatpi-components.git")
-    set(_meatpi_ref "bitz/v6-beta2")
-    set(_meatpi_pin "9101d033796936dd6dfe0a881cbac6c022c384fd")  # git commit SHA, not a secret: secret-scan:allow
+    set(_meatpi_ref "bitz/v6-beta4")
+    set(_meatpi_pin "dbfc75959fe5fbb1a3fb0eef9a359c1e96262d61")  # git commit SHA, not a secret: secret-scan:allow
     if(DEFINED ENV{MEATPI_COMPONENTS_GIT_URL})
         set(_meatpi_url "$ENV{MEATPI_COMPONENTS_GIT_URL}")
     endif()

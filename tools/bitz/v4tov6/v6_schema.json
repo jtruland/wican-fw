@@ -1,7 +1,7 @@
 {
  "generated_by": "extract_schema.py",
- "upstream": "meatpi-components@c51c3e2 (upstream v6.0.0p-beta.2)",
- "fork": "meatpi-components@9101d03 (bitz/v6-beta2)",
+ "upstream": "meatpi-components@0536313 (upstream v6.0.0p-beta.4)",
+ "fork": "meatpi-components@dbfc759 (bitz/v6-beta4)",
  "warnings": [],
  "components": {
   "autopid": {

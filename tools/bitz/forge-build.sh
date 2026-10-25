@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Build the WiCAN PRO bitz fork firmware. Runs ON FORGE (CT 110).
 # v6 = wican-fw (jtruland fork) + meatpi-components (jtruland fork), both on
-# the SAME branch name: BITZ_BRANCH (default bitz/v6-beta2; superseded ports
-# are bitz/v6-alfa04 and bitz/v6). The components commit is the PIN in the
-# top-level CMakeLists.txt (_meatpi_pin), never the branch tip.
+# the SAME branch name: BITZ_BRANCH (default bitz/v6-beta4; superseded ports
+# are bitz/v6-beta2, bitz/v6-alfa04 and bitz/v6). The components commit is the
+# PIN in the top-level CMakeLists.txt (_meatpi_pin), never the branch tip.
 # ESP-IDF 6.0.2 is REQUIRED for v6 (v5.5.2 is only for the old v4.51 tree).
 set -euo pipefail
-BRANCH="${BITZ_BRANCH:-bitz/v6-beta2}"
+BRANCH="${BITZ_BRANCH:-bitz/v6-beta4}"
 REPO="${BITZ_REPO:-/opt/builds/wican-fw-v6}"   # a fresh dir per base keeps the old build/
 LOG="${BITZ_LOG:-/tmp/wican-v6-build.log}"
 exec >>"$LOG" 2>&1
